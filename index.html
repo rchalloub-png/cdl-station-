@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CDL Station</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#e03a6e;--blue:#1F3864;--green:#3b9e6e;--orange:#e8820c;--bg:#f2f2ef;--card:#fff;--border:#e0e0da;--text:#1a1a1a;--muted:#888;--danger:#dc2626}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+
+/* LOGIN */
+#login_screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f2f2ef}
+.login-box{background:#fff;border:1px solid var(--border);border-radius:14px;padding:36px 32px;width:100%;max-width:380px}
+.login-box img{height:50px;display:block;margin:0 auto 20px}
+.login-box h2{font-size:16px;font-weight:600;color:var(--blue);text-align:center;margin-bottom:6px}
+.login-box p{font-size:12px;color:var(--muted);text-align:center;margin-bottom:24px}
+.login-err{background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:8px 12px;font-size:12px;color:var(--danger);margin-bottom:12px;display:none}
+
+/* NAV */
+#app_screen{display:none}
+.nav{background:var(--blue);display:flex;align-items:stretch;height:52px;position:sticky;top:0;z-index:100}
+.nav-logo{padding:6px 16px;display:flex;align-items:center}
+.nav-logo img{height:36px}
+.nav-tabs{display:flex;margin-left:4px;overflow-x:auto}
+.nav-tab{padding:0 14px;display:flex;align-items:center;color:rgba(255,255,255,.65);cursor:pointer;font-size:13px;font-weight:500;border-bottom:3px solid transparent;white-space:nowrap;user-select:none;transition:all .15s}
+.nav-tab:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-tab.active{color:#fff;border-bottom-color:var(--red)}
+.nav-tab.hidden{display:none}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:12px;padding-right:16px}
+.nav-user{font-size:12px;color:rgba(255,255,255,.75)}
+.nav-badge{background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:5px;font-weight:700}
+
+/* PAGES */
+.page{display:none;padding:20px;max-width:1000px;margin:0 auto;padding-bottom:60px}
+.page.active{display:block}
+h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+
+/* FORM */
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:12px;color:var(--muted)}
+.fg input,.fg select,.fg textarea{height:36px;border:1px solid #ddd;border-radius:7px;padding:0 10px;font-size:13px;background:#fafafa;color:var(--text);width:100%}
+.fg textarea{height:auto;padding:8px 10px;resize:vertical}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--red);background:#fff}
+
+/* SORTIES */
+.sc{border:1px solid var(--border);border-radius:8px;padding:10px 6px;text-align:center;background:#fafafa}
+.sc label{font-size:11px;font-weight:600;display:block;margin-bottom:1px}
+.sc small{font-size:10px;color:var(--muted);display:block;margin-bottom:6px}
+.sc input{width:100%;border:1px solid #ddd;border-radius:6px;padding:4px;font-size:14px;font-weight:600;text-align:center;background:#fff;height:34px}
+.sc .kg{font-size:10px;color:var(--muted);margin-top:4px;min-height:14px}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.btn{height:36px;padding:0 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #ddd;background:#fff;color:var(--text);transition:all .12s}
+.btn:hover{background:var(--bg)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.red{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.red:hover:not(:disabled){background:#c42d5c}
+.btn.blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.blue:hover:not(:disabled){background:#162b4d}
+.btn.green{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.green:hover:not(:disabled){background:#2d7a55}
+.btn.sm{height:30px;padding:0 12px;font-size:12px}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.metric{background:var(--bg);border-radius:8px;padding:10px 14px}
+.metric .lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+.metric .val{font-size:20px;font-weight:700}
+.metric .sub{font-size:10px;color:var(--muted);margin-top:2px}
+.metric.ok .val{color:var(--green)}
+.metric.warn .val{color:var(--orange)}
+.rbar{height:5px;background:#ddd;border-radius:3px;overflow:hidden;margin-top:5px}
+.rfill{height:100%;background:var(--green);border-radius:3px;transition:width .3s}
+.rfill.orange{background:var(--orange)}
+
+/* COND */
+.cond-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #f0f0ec}
+.cond-row:last-child{border-bottom:none}
+.cond-info{flex:1}
+.cond-info .name{font-size:13px;font-weight:500}
+.cond-info .sub{font-size:11px;color:var(--muted)}
+.cond-input{display:flex;align-items:center;gap:6px}
+.cond-input input{width:80px;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px;font-size:14px;font-weight:600;text-align:center;background:#fafafa}
+.cond-input input:focus{outline:none;border-color:var(--red)}
+.cond-input span{font-size:12px;color:var(--muted)}
+.cond-total{background:var(--bg);margin:0 -20px -16px;padding:10px 20px;border-radius:0 0 10px 10px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border)}
+
+/* STOCK */
+.stock-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.stock-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.stock-item.export{border-color:var(--green);background:#f0faf5}
+.stock-item .si-label{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.stock-item .si-val{font-size:24px;font-weight:700}
+.stock-item.export .si-val{color:var(--green)}
+.stock-item .si-sub{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* TABLES */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--blue);color:#fff;padding:7px 10px;text-align:left;font-weight:500;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #f0f0ec;color:var(--text);vertical-align:middle}
+.tbl tr:hover td{background:#f7f7f5}
+.tbl-wrap{overflow-x:auto}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-green{background:#d4f0e3;color:#085041}
+.b-blue{background:#d6e8ff;color:#1F3864}
+.b-red{background:#fee2e2;color:#991b1b}
+.b-orange{background:#fef3c7;color:#92400e}
+.b-gray{background:#f3f4f6;color:#374151}
+
+/* AGRGAGE SACS */
+.agr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.agr-sac{border:1px solid var(--border);border-radius:7px;padding:8px 6px;background:#fafafa}
+.agr-sac .sn{font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px;text-align:center}
+.agr-sac input{width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 5px;font-size:12px;text-align:center;background:#fff;height:28px;margin-bottom:3px}
+.agr-sac input:focus{outline:none;border-color:var(--red)}
+.agr-sac .slbl{font-size:9px;color:var(--muted);text-align:center;margin-bottom:2px}
+
+/* PACKING PALETTES */
+.pallet-table{width:100%;border-collapse:collapse;font-size:12px}
+.pallet-table th{background:var(--blue);color:#fff;padding:6px 8px;text-align:center;font-size:11px}
+.pallet-table td{border:1px solid #ddd;padding:4px 6px;text-align:center}
+.pallet-table tr:nth-child(even) td{background:#f8f8f8}
+.pallet-table input{width:56px;border:1px solid #ccc;border-radius:4px;padding:2px 4px;text-align:center;font-size:12px;background:#fff;height:26px}
+.pallet-table .tot-row td{background:#d6e8ff;font-weight:700}
+
+/* RAPPORT PRINT */
+.rp{display:none;background:#fff;border:1px solid var(--border);border-radius:10px;padding:24px;margin-top:14px}
+.rp.show{display:block}
+.rp-hdr{display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:3px solid var(--red);margin-bottom:14px}
+.rp-hdr img{height:44px}
+.rp-hdr-r{text-align:right}
+.rp-hdr-r h3{font-size:14px;font-weight:700;color:var(--blue);text-transform:uppercase}
+.rp-hdr-r p{font-size:11px;color:var(--muted);margin-top:2px}
+.rp-sec{margin-bottom:14px}
+.rp-sec-title{font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;padding-bottom:3px;border-bottom:1px solid #f0e0e6}
+.rp-table{width:100%;border-collapse:collapse;font-size:12px}
+.rp-table th{background:#f7f7f5;padding:5px 8px;text-align:left;font-size:11px;font-weight:600;border:1px solid #eee}
+.rp-table td{padding:5px 8px;border:1px solid #eee}
+.rp-table .tr-tot td{background:#eef3f0;font-weight:700}
+.rp-table .tr-exp td{background:#e8f5ef;color:#1a6b47;font-weight:600}
+.rp-bilan{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rp-bl{background:#f7f7f5;border-radius:7px;padding:8px 10px;text-align:center}
+.rp-bl .l{font-size:10px;color:var(--muted);margin-bottom:2px}
+.rp-bl .v{font-size:16px;font-weight:700}
+.rp-bl.ok .v{color:var(--green)}
+.rp-bl.warn .v{color:var(--orange)}
+.rp-sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;padding-top:12px;border-top:1px solid #eee}
+.rp-sign div{text-align:center}
+.rp-sign .lbl{font-size:11px;color:var(--muted);margin-bottom:22px}
+.rp-sign .line{border-top:1px solid #ccc;padding-top:4px;font-size:10px;color:#aaa}
+
+/* ADMIN */
+.user-card{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0ec}
+.user-avatar{width:36px;height:36px;border-radius:50%;background:#d6e8ff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#1F3864;flex-shrink:0}
+.user-info{flex:1}
+.user-name{font-size:13px;font-weight:500}
+.user-role{font-size:11px;color:var(--muted)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{background:var(--green)}
+.toast.err{background:var(--danger)}
+
+/* LOADING */
+.loading{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;padding:20px 0}
+.spinner{width:18px;height:18px;border:2px solid #ddd;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media print{
+  .nav,.btn-row,.card:not(.printable),.metrics,.no-print,#login_screen{display:none!important}
+  .page.active{padding:0;max-width:100%}
+  .rp{display:block!important;border:none;padding:0}
+}
+</style>
+
+
+<!-- LOGIN -->
+<div id="login_screen">
+  <div class="login-box">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='55' viewBox='0 0 160 55'%3E%3Crect width='160' height='55' fill='%231F3864' rx='6'/%3E%3Ctext x='80' y='22' font-family='Arial' font-size='13' font-weight='bold' fill='%23e03a6e' text-anchor='middle'%3EAfrica Food%3C/text%3E%3Ctext x='80' y='40' font-family='Arial' font-size='10' fill='%23ffffff' text-anchor='middle'%3ECocoteraie Des Lagunes%3C/text%3E%3C/svg%3E" alt="Africa Food">
+    <h2>CDL Station</h2>
+    <p>Cocoteraie Des Lagunes — Accès sécurisé</p>
+    <div class="login-err" id="login_err"></div>
+    <div class="fg" style="margin-bottom:10px"><label>Email</label><input type="email" id="li_email" placeholder="prenom.nom@africa-food.ci"></div>
+    <div class="fg" style="margin-bottom:16px"><label>Mot de passe</label><input type="password" id="li_pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn red" style="width:100%" onclick="doLogin()" id="btn_login">Se connecter</button>
+    <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:12px">Accès réservé au personnel CDL / Africa Food</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app_screen">
+<nav class="nav">
+  <div class="nav-logo"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='55' viewBox='0 0 160 55'%3E%3Crect width='160' height='55' fill='%231F3864' rx='6'/%3E%3Ctext x='80' y='22' font-family='Arial' font-size='13' font-weight='bold' fill='%23e03a6e' text-anchor='middle'%3EAfrica Food%3C/text%3E%3Ctext x='80' y='40' font-family='Arial' font-size='10' fill='%23ffffff' text-anchor='middle'%3ECocoteraie Des Lagunes%3C/text%3E%3C/svg%3E" alt="Africa Food"></div>
+  <div class="nav-tabs">
+    <div class="nav-tab" id="tab_br" onclick="showPage('br',this)">&#128230; Réceptions</div>
+    <div class="nav-tab" id="tab_agr" onclick="showPage('agr',this)">&#128202; Agréage</div>
+    <div class="nav-tab" id="tab_prod" onclick="showPage('prod',this)">&#9881; Calibreuse</div>
+    <div class="nav-tab" id="tab_stock" onclick="showPage('stock',this)">&#128218; Stock PF <span class="nav-badge" id="badge_stock">0</span></div>
+    <div class="nav-tab" id="tab_pl" onclick="showPage('pl',this)">&#128196; Packing List</div>
+    <div class="nav-tab" id="tab_admin" onclick="showPage('admin',this)">&#128100; Admin</div>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav_user_name"></span>
+    <button class="btn sm" style="color:#fff;border-color:rgba(255,255,255,.3);background:transparent" onclick="doLogout()">Déconnexion</button>
+  </div>
+</nav>
+
+<!-- PAGE BR -->
+<div class="page" id="page_br">
+<h2>&#128230; Bons de Réception fournisseur</h2>
+<div class="card">
+  <div class="card-title">Nouveau bon de réception</div>
+  <div class="g3">
+    <div class="fg"><label>N° Bon ODOO</label><input id="br_num" placeholder="S00..."></div>
+    <div class="fg"><label>Date réception</label><input type="date" id="br_date"></div>
+    <div class="fg"><label>Fournisseur</label>
+      <select id="br_fourn"><option value="">Sélectionner...</option></select>
+    </div>
+    <div class="fg"><label>Nombre de sacs reçus</label><input type="number" id="br_sacs" min="0" placeholder="ex: 100" oninput="brCalc()"></div>
+    <div class="fg"><label>Noix par sac</label><input type="number" id="br_npb" value="60" min="1" oninput="brCalc()"></div>
+    <div class="fg"><label>Total noix (calculé)</label><input id="br_total_noix" readonly style="background:#f0f0ec;font-weight:600;color:var(--green)"></div>
+    <div class="fg" style="grid-column:1/-1"><label>Notes</label><textarea id="br_notes" rows="2" placeholder="Observations sur la livraison..."></textarea></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn red" onclick="brSave()">&#10003; Enregistrer le BR</button>
+    <button class="btn" onclick="brReset()">&#8635; Réinitialiser</button>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Bons de réception récents</div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>N° BR</th><th>Date</th><th>Fournisseur</th><th>Sacs</th><th>Noix</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tbody_br"></tbody></table></div>
+</div>
+</div>
+
+<!-- PAGE AGREAGE -->
+<div class="page" id="page_agr">
+<h2>&#128202; Agréage — Contrôle qualité réception</h2>
+<div class="card">
+  <div class="card-title">Sélection du bon de réception</div>
+  <div class="g2">
+    <div class="fg"><label>Bon de réception</label>
+      <select id="agr_br_select" onchange="agrLoadBR()"><option value="">Sélectionner un BR...</option></select>
+    </div>
+    <div class="fg"><label>Date agréage</label><input type="date" id="agr_date"></div>
+  </div>
+  <div id="agr_br_info" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:7px;font-size:13px"></div>
+</div>
+<div class="card" id="agr_form_card" style="display:none">
+  <div class="card-title">Contrôle — 25 sacs échantillon</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Pour chaque sac : poids réel (kg), nombre de noix germées, pourries, sous-poids</p>
+  <div class="agr-grid" id="agr_sacs_grid"></div>
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+    <div class="g4">
+      <div class="metric"><div class="lbl">Poids moyen / sac</div><div class="val" id="agr_poids_moy">—</div><div class="sub">kg</div></div>
+      <div class="metric"><div class="lbl">Total défauts</div><div class="val" id="agr_total_def">—</div><div class="sub">noix</div></div>
+      <div class="metric warn"><div class="lbl">Taux défauts</div><div class="val" id="agr_taux_def">—</div><div class="rbar"><div class="rfill orange" id="agr_rbar" style="width:0%"></div></div></div>
+      <div class="metric" id="agr_resultat_metric"><div class="lbl">Résultat</div><div class="val" id="agr_resultat">—</div></div>
+    </div>
+  </div>
+  <div class="fg" style="margin-top:10px"><label>Observations contrôleur</label><textarea id="agr_notes" rows="2" placeholder="Observations..."></textarea></div>
+  <div class="btn-row">
+    <button class="btn red" onclick="agrSave()">&#10003; Valider l'agréage</button>
+    <button class="btn" onclick="window.print()">&#128438; Imprimer</button>
+  </div>
+</div>
+<div class="rp" id="rp_agr">
+  <div class="rp-hdr">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='55' viewBox='0 0 160 55'%3E%3Crect width='160' height='55' fill='%231F3864' rx='6'/%3E%3Ctext x='80' y='22' font-family='Arial' font-size='13' font-weight='bold' fill='%23e03a6e' text-anchor='middle'%3EAfrica Food%3C/text%3E%3Ctext x='80' y='40' font-family='Arial' font-size='10' fill='%23ffffff' text-anchor='middle'%3ECocoteraie Des Lagunes%3C/text%3E%3C/svg%3E" alt="Africa Food">
+    <div class="rp-hdr-r"><h3>Fiche d'agréage</h3><p>Cocoteraie Des Lagunes (CDL)</p><p id="rp_agr_date"></p></div>
+  </div>
+  <div id="rp_agr_content"></div>
+  <div class="rp-sign"><div><div class="lbl">Contrôleur qualité</div><div class="line" id="rp_agr_ctrl"></div></div><div><div class="lbl">Visa responsable</div><div class="line">Nom &amp; signature</div></div></div>
+</div>
+<div class="card" style="margin-top:4px">
+  <div class="card-title">Historique agréages</div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>BR</th><th>Fournisseur</th><th>Poids moy.</th><th>Taux défauts</th><th>Résultat</th><th>Contrôleur</th></tr></thead><tbody id="tbody_agr"></tbody></table></div>
+</div>
+</div>
+
+<!-- PAGE PRODUCTION -->
+<div class="page" id="page_prod">
+<h2>&#9881; Production — Calibreuse</h2>
+<div class="card">
+  <div class="card-title">Identification</div>
+  <div class="g3">
+    <div class="fg"><label>Bon de réception lié</label>
+      <select id="p_br_select" onchange="prodLoadBR()"><option value="">Sélectionner un BR...</option></select>
+    </div>
+    <div class="fg"><label>Date production</label><input type="date" id="p_date"></div>
+    <div class="fg"><label>Fournisseur</label><input id="p_fourn" readonly style="background:#f0f0ec"></div>
+    <div class="fg"><label>Nombre de noix entrées</label><input type="number" id="p_entree" placeholder="ex: 50440" min="0" oninput="pCalc()"></div>
+    <div class="fg"><label>Poids total entrée (kg)</label><input type="number" id="p_poids" placeholder="ex: 2150" min="0" oninput="pCalc()"></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Sorties calibreuse</div>
+  <div class="g5">
+    <div class="sc"><label>S5</label><small>801–1500 g</small><input type="number" id="s5" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kg5"></div></div>
+    <div class="sc"><label>S4</label><small>701–800 g</small><input type="number" id="s4" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kg4"></div></div>
+    <div class="sc"><label>S3</label><small>551–700 g</small><input type="number" id="s3" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kg3"></div></div>
+    <div class="sc"><label>S2</label><small>401–550 g</small><input type="number" id="s2" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kg2"></div></div>
+    <div class="sc"><label>S1</label><small>350–400 g</small><input type="number" id="s1" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kg1"></div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Conditionnement export</div>
+  <div class="cond-row">
+    <div class="cond-info"><div class="name">Calibre 40</div><div class="sub">Sacs de 21,5 kg</div></div>
+    <div class="cond-input"><input type="number" id="c40" min="0" placeholder="0" oninput="pCalc()"><span>sacs</span></div>
+  </div>
+  <div class="cond-row">
+    <div class="cond-info"><div class="name">Calibre 50</div><div class="sub">Sacs de 21,5 kg</div></div>
+    <div class="cond-input"><input type="number" id="c50" min="0" placeholder="0" oninput="pCalc()"><span>sacs</span></div>
+  </div>
+  <div class="cond-total">
+    <div><div style="font-size:13px;font-weight:600">Total export conditionné</div><div style="font-size:11px;color:var(--muted)">Cal 40 + Cal 50</div></div>
+    <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--green)" id="p_exp_tot">—</div><div style="font-size:11px;color:var(--muted)" id="p_exp_kg"></div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Rejets &amp; écarts</div>
+  <div class="g3">
+    <div class="fg"><label>Sous-poids (&lt;350 g) — noix</label><input type="number" id="r_ss" min="0" placeholder="0" oninput="pCalc()"></div>
+    <div class="fg"><label>Noix germées — noix</label><input type="number" id="r_ge" min="0" placeholder="0" oninput="pCalc()"></div>
+    <div class="fg"><label>Noix écartées — noix</label><input type="number" id="r_ec" min="0" placeholder="0" oninput="pCalc()"></div>
+  </div>
+</div>
+<div class="metrics">
+  <div class="metric"><div class="lbl">Entrée (noix)</div><div class="val" id="m_e">—</div></div>
+  <div class="metric"><div class="lbl">Total sorties</div><div class="val" id="m_s">—</div><div class="sub">S1+S2+S3+S4+S5</div></div>
+  <div class="metric warn"><div class="lbl">Taux de rejet</div><div class="val" id="m_r">—</div><div class="sub" id="m_r_noix"></div><div class="rbar"><div class="rfill orange" id="m_rbar_rej" style="width:0%"></div></div></div>
+  <div class="metric ok"><div class="lbl">Rendement export</div><div class="val" id="m_rend">—</div><div class="sub" id="m_rend_kg"></div><div class="rbar"><div class="rfill" id="m_rbar" style="width:0%"></div></div></div>
+</div>
+<div class="btn-row no-print">
+  <button class="btn red" onclick="pGenerer()">&#9654; Générer le rapport</button>
+  <button class="btn blue" id="btn_valider" style="display:none" onclick="pValider()">&#10003; Valider &amp; envoyer au stock</button>
+  <button class="btn" onclick="window.print()">&#128438; Imprimer</button>
+  <button class="btn" onclick="pReset()">&#8635; Réinitialiser</button>
+</div>
+<div class="rp" id="rp_prod">
+  <div class="rp-hdr"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='55' viewBox='0 0 160 55'%3E%3Crect width='160' height='55' fill='%231F3864' rx='6'/%3E%3Ctext x='80' y='22' font-family='Arial' font-size='13' font-weight='bold' fill='%23e03a6e' text-anchor='middle'%3EAfrica Food%3C/text%3E%3Ctext x='80' y='40' font-family='Arial' font-size='10' fill='%23ffffff' text-anchor='middle'%3ECocoteraie Des Lagunes%3C/text%3E%3C/svg%3E" alt="Africa Food"><div class="rp-hdr-r"><h3>Rapport de production — Calibreuse</h3><p>Cocoteraie Des Lagunes (CDL)</p><p id="rp_date"></p></div></div>
+  <div class="rp-sec"><div class="rp-sec-title">Identification</div><div id="rp_meta" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:12px"></div></div>
+  <div class="rp-sec"><div class="rp-sec-title">Sorties calibreuse</div><table class="rp-table"><thead><tr><th>Sortie</th><th>Fourchette</th><th style="text-align:right">Noix</th><th style="text-align:right">Poids est. (kg)</th></tr></thead><tbody id="rp_sorties"></tbody></table></div>
+  <div class="rp-sec"><div class="rp-sec-title">Conditionnement export</div><table class="rp-table"><thead><tr><th>Calibre</th><th>Poids sac</th><th style="text-align:right">Sacs</th><th style="text-align:right">Poids (kg)</th></tr></thead><tbody id="rp_cond"></tbody></table></div>
+  <div class="rp-sec"><div class="rp-sec-title">Rejets &amp; écarts</div><table class="rp-table"><thead><tr><th>Catégorie</th><th style="text-align:right">Noix</th></tr></thead><tbody id="rp_rej"></tbody></table></div>
+  <div class="rp-sec"><div class="rp-sec-title">Bilan</div><div class="rp-bilan" id="rp_bilan"></div></div>
+  <div class="rp-sign"><div><div class="lbl">Signature opérateur</div><div class="line" id="rp_oper_sign">Nom &amp; signature</div></div><div><div class="lbl">Visa contrôleur</div><div class="line">Nom &amp; signature</div></div></div>
+</div>
+</div>
+
+<!-- PAGE STOCK -->
+<div class="page" id="page_stock">
+<h2>&#128218; Stock Produit Fini</h2>
+<div class="stock-grid">
+  <div class="stock-item export"><div class="si-label">Calibre 40</div><div class="si-val" id="st_c40">0</div><div class="si-sub">sacs</div></div>
+  <div class="stock-item export"><div class="si-label">Calibre 50</div><div class="si-val" id="st_c50">0</div><div class="si-sub">sacs</div></div>
+  <div class="stock-item"><div class="si-label">S3 — 551–700g</div><div class="si-val" id="st_s3">0</div><div class="si-sub">noix</div></div>
+  <div class="stock-item"><div class="si-label">S4 — 701–800g</div><div class="si-val" id="st_s4">0</div><div class="si-sub">noix</div></div>
+  <div class="stock-item"><div class="si-label">S5 — 801–1500g</div><div class="si-val" id="st_s5">0</div><div class="si-sub">noix</div></div>
+</div>
+<div class="card">
+  <div class="card-title">Sortie manuelle (hors packing list)</div>
+  <div class="g4">
+    <div class="fg"><label>Calibre 40 — sacs</label><input type="number" id="out_c40" min="0" placeholder="0"></div>
+    <div class="fg"><label>Calibre 50 — sacs</label><input type="number" id="out_c50" min="0" placeholder="0"></div>
+    <div class="fg"><label>Motif</label><input id="out_motif" placeholder="ex: retour, casse..."></div>
+    <div class="fg"><label>&nbsp;</label><button class="btn red" style="width:100%" onclick="stockSortie()">Sortir du stock</button></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Mouvements de stock</div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Référence</th><th>Cal 40</th><th>Cal 50</th><th>Par</th></tr></thead><tbody id="tbody_stock"></tbody></table></div>
+</div>
+</div>
+
+<!-- PAGE PACKING LIST -->
+<div class="page" id="page_pl">
+<h2>&#128196; Packing List — Chargement conteneur</h2>
+<div class="card">
+  <div class="card-title">Références</div>
+  <div class="g3">
+    <div class="fg"><label>Client</label><input id="pl_client" placeholder="ex: RC TRADING"></div>
+    <div class="fg"><label>Semaine</label><input id="pl_sem" placeholder="ex: 17"></div>
+    <div class="fg"><label>Batch N°</label><input id="pl_batch" placeholder="ex: C07-275"></div>
+    <div class="fg"><label>GGN / Certif.</label><input id="pl_ggn" placeholder="4063651127713  CI-BIO-154"></div>
+    <div class="fg"><label>Date potting</label><input type="date" id="pl_potting"></div>
+    <div class="fg"><label>Conteneur N°</label><input id="pl_cont" placeholder="ex: CXRU1578299"></div>
+    <div class="fg"><label>Plomb (Lead N°)</label><input id="pl_lead" placeholder="ex: K0641392"></div>
+    <div class="fg"><label>Navire / Voyage</label><input id="pl_ship" placeholder="ex: CMA CGM ANL WYONG"></div>
+    <div class="fg"><label>Pays destination</label><input id="pl_country" placeholder="ex: HOLLAND"></div>
+    <div class="fg"><label>ETD</label><input type="date" id="pl_etd"></div>
+    <div class="fg"><label>ETA</label><input type="date" id="pl_eta"></div>
+    <div class="fg"><label>Noix par sac</label><input type="number" id="pl_npb" value="40" min="1"></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Plan de potage — Palettes</div>
+  <div class="btn-row no-print" style="margin-bottom:10px">
+    <button class="btn" onclick="plAddPallet()">+ Palette</button>
+    <button class="btn" onclick="plRemovePallet()">− Retirer</button>
+    <button class="btn green" onclick="plAutoFill()">&#9889; Auto depuis stock</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="pallet-table"><thead><tr><th rowspan="2">N°</th><th colspan="2">A</th><th colspan="2">B</th><th colspan="2">TOTAL</th></tr><tr><th>GG</th><th>BIO</th><th>GG</th><th>BIO</th><th>GG</th><th>BIO</th></tr></thead><tbody id="pl_tbody"></tbody><tfoot id="pl_tfoot"></tfoot></table>
+  </div>
+</div>
+<div class="btn-row no-print">
+  <button class="btn red" onclick="plGenerer()">&#9654; Générer la packing list</button>
+  <button class="btn blue" id="btn_pl_valider" style="display:none" onclick="plValider()">&#10003; Valider &amp; débiter stock</button>
+  <button class="btn" onclick="window.print()">&#128438; Imprimer</button>
+  <button class="btn" onclick="plReset()">&#8635; Réinitialiser</button>
+</div>
+<div class="rp" id="rp_pl">
+  <div class="rp-hdr"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='55' viewBox='0 0 160 55'%3E%3Crect width='160' height='55' fill='%231F3864' rx='6'/%3E%3Ctext x='80' y='22' font-family='Arial' font-size='13' font-weight='bold' fill='%23e03a6e' text-anchor='middle'%3EAfrica Food%3C/text%3E%3Ctext x='80' y='40' font-family='Arial' font-size='10' fill='%23ffffff' text-anchor='middle'%3ECocoteraie Des Lagunes%3C/text%3E%3C/svg%3E" alt="Africa Food"><div class="rp-hdr-r"><h3>Packing List</h3><p id="rp_pl_sub"></p><p id="rp_pl_date"></p></div></div>
+  <div class="rp-sec"><div class="rp-sec-title">I. Références</div><div id="rp_pl_refs" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:12px"></div></div>
+  <div class="rp-sec"><div class="rp-sec-title">II. Potting Plan</div><div id="rp_pl_table"></div></div>
+  <div class="rp-sign"><div><div class="lbl">Établi par</div><div class="line" id="rp_pl_sign"></div></div><div><div class="lbl">Quality Manager</div><div class="line">Marius N'GUESSAN — quality@africa-food.ci</div></div></div>
+</div>
+</div>
+
+<!-- PAGE ADMIN -->
+<div class="page" id="page_admin">
+<h2>&#128100; Administration</h2>
+<div class="card">
+  <div class="card-title">Créer un utilisateur</div>
+  <div class="g3">
+    <div class="fg"><label>Prénom</label><input id="adm_prenom" placeholder="ex: Joel"></div>
+    <div class="fg"><label>Nom</label><input id="adm_nom" placeholder="ex: Bazon"></div>
+    <div class="fg"><label>Email</label><input type="email" id="adm_email" placeholder="prenom.nom@africa-food.ci"></div>
+    <div class="fg"><label>Rôle</label>
+      <select id="adm_role">
+        <option value="operateur">Opérateur station</option>
+        <option value="controleur">Contrôleur qualité</option>
+        <option value="logistique">Responsable logistique</option>
+        <option value="admin">Administrateur</option>
+      </select>
+    </div>
+    <div class="fg"><label>Mot de passe provisoire</label><input type="password" id="adm_pass" placeholder="Min. 8 caractères"></div>
+    <div class="fg"><label>&nbsp;</label><button class="btn red" style="width:100%" onclick="admCreateUser()">Créer l'utilisateur</button></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Utilisateurs actifs</div>
+  <div id="adm_users_list"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+</div>
+<div class="card">
+  <div class="card-title">Fournisseurs</div>
+  <div class="g2" style="margin-bottom:10px">
+    <div class="fg"><label>Nom fournisseur</label><input id="adm_fourn_nom" placeholder="Nouveau fournisseur"></div>
+    <div class="fg"><label>&nbsp;</label><button class="btn blue" style="width:100%" onclick="admAddFourn()">+ Ajouter</button></div>
+  </div>
+  <div id="adm_fourn_list"></div>
+</div>
+</div>
+
+</div><!-- /app_screen -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIG — REMPLACE CES DEUX VALEURS PAR TES CLÉS SUPABASE
+// ============================================================
+const SUPA_URL = 'https://kxvxxeffyoudpmzubqop.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4dnh4ZWZmeW91ZHBtenVicW9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDk0MTYsImV4cCI6MjA5NDMyNTQxNn0.Pcb5NSd-t3UAuzI7c3TG7iR18FY17K_q1k7Edvjr7SE';
+// ============================================================
+
+const SAC=21.5, MIDS=[375,475,625,750,1000];
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let currentUser = null;
+let currentProfile = null;
+let stockData = {cal40_sacs:0,cal50_sacs:0,s3_noix:0,s4_noix:0,s5_noix:0};
+let brList = [];
+let plPallets = [];
+
+// ---- UTILS ----
+function gv(id){return parseFloat(document.getElementById(id).value)||0;}
+function gt(id){return (document.getElementById(id).value||'').trim();}
+function fmt(n){return Number(n||0).toLocaleString('fr-FR');}
+function fmtDate(v){return v?new Date(v).toLocaleDateString('fr-FR'):'—';}
+function toast(msg,type='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(()=>t.classList.remove('show'),3000);}
+function loading(id){document.getElementById(id).innerHTML='<div class="loading"><div class="spinner"></div>Chargement...</div>';}
+
+// ---- AUTH ----
+async function doLogin(){
+  const email=gt('li_email'), pass=gt('li_pass');
+  if(!email||!pass){showErr('Remplis email et mot de passe.');return;}
+  document.getElementById('btn_login').disabled=true;
+  document.getElementById('btn_login').textContent='Connexion...';
+  const {data,error}=await db.auth.signInWithPassword({email,password:pass});
+  if(error){showErr(error.message);document.getElementById('btn_login').disabled=false;document.getElementById('btn_login').textContent='Se connecter';return;}
+  await initApp(data.user);
+}
+function showErr(m){const e=document.getElementById('login_err');e.textContent=m;e.style.display='block';}
+
+async function doLogout(){
+  await db.auth.signOut();
+  document.getElementById('app_screen').style.display='none';
+  document.getElementById('login_screen').style.display='flex';
+  document.getElementById('btn_login').disabled=false;
+  document.getElementById('btn_login').textContent='Se connecter';
+}
+
+async function initApp(user){
+  currentUser=user;
+  const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).single();
+  currentProfile=prof;
+  document.getElementById('login_screen').style.display='none';
+  document.getElementById('app_screen').style.display='block';
+  document.getElementById('nav_user_name').textContent=(prof?.prenom||'')+' '+(prof?.nom||'')+' ('+roleLabel(prof?.role)+')';
+  applyRoleAccess(prof?.role||'operateur');
+  await loadFournisseurs();
+  await loadBRList();
+  await loadStock();
+  showPage('br', document.getElementById('tab_br'));
+}
+
+function roleLabel(r){return {admin:'Admin',operateur:'Opérateur',controleur:'Contrôleur',logistique:'Logistique'}[r]||r;}
+
+function applyRoleAccess(role){
+  if(role==='operateur'){document.getElementById('tab_pl').classList.add('hidden');document.getElementById('tab_admin').classList.add('hidden');}
+  if(role==='controleur'){document.getElementById('tab_pl').classList.add('hidden');document.getElementById('tab_admin').classList.add('hidden');}
+  if(role==='logistique'){document.getElementById('tab_br').classList.add('hidden');document.getElementById('tab_agr').classList.add('hidden');document.getElementById('tab_admin').classList.add('hidden');}
+  if(role!=='admin'){document.getElementById('tab_admin').classList.add('hidden');}
+}
+
+// Check session on load
+db.auth.onAuthStateChange(async(event,session)=>{
+  if(session?.user&&event==='SIGNED_IN'){await initApp(session.user);}
+});
+
+// ---- NAVIGATION ----
+function showPage(p,el){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page_'+p).classList.add('active');
+  if(el)el.classList.add('active');
+  if(p==='stock')renderStock();
+  if(p==='admin'){loadAdminUsers();loadAdminFourn();}
+  if(p==='agr')loadAgrBRSelect();
+  if(p==='prod')loadProdBRSelect();
+}
+
+// ---- FOURNISSEURS ----
+async function loadFournisseurs(){
+  const {data}=await db.from('fournisseurs').select('*').eq('actif',true).order('nom');
+  const sel=document.getElementById('br_fourn');
+  sel.innerHTML='<option value="">Sélectionner...</option>';
+  (data||[]).forEach(f=>sel.innerHTML+=`<option value="${f.id}" data-nom="${f.nom}">${f.nom}</option>`);
+}
+
+// ---- BONS DE RECEPTION ----
+function brCalc(){
+  const s=gv('br_sacs'),n=gv('br_npb')||60;
+  document.getElementById('br_total_noix').value=s>0?fmt(s*n):'';
+}
+
+async function brSave(){
+  const num=gt('br_num'),fourn_id=gt('br_fourn'),sacs=gv('br_sacs');
+  if(!num||!fourn_id||!sacs){toast('Remplis N° BR, fournisseur et nb sacs.','err');return;}
+  const sel=document.getElementById('br_fourn');
+  const fourn_nom=sel.options[sel.selectedIndex]?.getAttribute('data-nom')||'';
+  const npb=gv('br_npb')||60;
+  const {error}=await db.from('bons_reception').insert({
+    numero:num, date_reception:gt('br_date')||new Date().toISOString().split('T')[0],
+    fournisseur_id:fourn_id, fournisseur_nom:fourn_nom,
+    nb_sacs:sacs, noix_par_sac:npb, total_noix:Math.round(sacs*npb),
+    operateur_id:currentUser.id, operateur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
+    notes:gt('br_notes'), statut:'en_attente'
+  });
+  if(error){toast('Erreur: '+error.message,'err');return;}
+  toast('Bon de réception enregistré !','ok');
+  brReset();
+  await loadBRList();
+  await loadAgrBRSelect();
+  await loadProdBRSelect();
+}
+
+async function loadBRList(){
+  const {data}=await db.from('bons_reception').select('*').order('created_at',{ascending:false}).limit(50);
+  brList=data||[];
+  const tb=document.getElementById('tbody_br');
+  tb.innerHTML=brList.map(b=>`<tr>
+    <td><b>${b.numero}</b></td>
+    <td>${fmtDate(b.date_reception)}</td>
+    <td>${b.fournisseur_nom||'—'}</td>
+    <td>${fmt(b.nb_sacs)}</td>
+    <td>${fmt(b.total_noix)}</td>
+    <td>${brStatutBadge(b.statut)}</td>
+    <td><button class="btn sm" onclick="brDelete('${b.id}')">Suppr.</button></td>
+  </tr>`).join('');
+}
+
+function brStatutBadge(s){return {en_attente:'<span class="badge b-orange">En attente</span>',agreage_ok:'<span class="badge b-green">Agréage OK</span>',agreage_ko:'<span class="badge b-red">Agréage KO</span>',calibrage_ok:'<span class="badge b-blue">Calibré</span>'}[s]||s;}
+
+async function brDelete(id){
+  if(!confirm('Supprimer ce BR ?'))return;
+  await db.from('bons_reception').delete().eq('id',id);
+  await loadBRList();
+  toast('BR supprimé');
+}
+
+function brReset(){
+  ['br_num','br_date','br_fourn','br_sacs','br_notes','br_total_noix'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('br_npb').value='60';
+  document.getElementById('br_date').valueAsDate=new Date();
+}
+
+// ---- AGREAGE ----
+async function loadAgrBRSelect(){
+  const {data}=await db.from('bons_reception').select('*').in('statut',['en_attente','agreage_ko']).order('created_at',{ascending:false});
+  const sel=document.getElementById('agr_br_select');
+  sel.innerHTML='<option value="">Sélectionner un BR...</option>';
+  (data||[]).forEach(b=>sel.innerHTML+=`<option value="${b.id}" data-num="${b.numero}" data-fourn="${b.fournisseur_nom||''}" data-noix="${b.total_noix||0}">${b.numero} — ${b.fournisseur_nom||''} (${fmt(b.total_noix)} noix)</option>`);
+}
+
+function agrLoadBR(){
+  const sel=document.getElementById('agr_br_select');
+  const opt=sel.options[sel.selectedIndex];
+  if(!opt||!opt.value){document.getElementById('agr_br_info').style.display='none';document.getElementById('agr_form_card').style.display='none';return;}
+  document.getElementById('agr_br_info').style.display='block';
+  document.getElementById('agr_br_info').innerHTML=`<b>${opt.getAttribute('data-num')}</b> — Fournisseur : <b>${opt.getAttribute('data-fourn')}</b> — Total noix : <b>${fmt(opt.getAttribute('data-noix'))}</b>`;
+  document.getElementById('agr_form_card').style.display='block';
+  buildAgrGrid();
+}
+
+function buildAgrGrid(){
+  const grid=document.getElementById('agr_sacs_grid');
+  let html='';
+  for(let i=1;i<=25;i++){
+    html+=`<div class="agr-sac">
+      <div class="sn">Sac ${i}</div>
+      <div class="slbl">Poids (kg)</div>
+      <input type="number" step="0.1" min="0" max="30" placeholder="21.5" id="agr_p${i}" oninput="agrCalc()">
+      <div class="slbl">Germées</div>
+      <input type="number" min="0" placeholder="0" id="agr_g${i}" oninput="agrCalc()">
+      <div class="slbl">Pourries</div>
+      <input type="number" min="0" placeholder="0" id="agr_po${i}" oninput="agrCalc()">
+      <div class="slbl">S/poids</div>
+      <input type="number" min="0" placeholder="0" id="agr_s${i}" oninput="agrCalc()">
+    </div>`;
+  }
+  grid.innerHTML=html;
+}
+
+function agrCalc(){
+  let total_poids=0,n_poids=0,total_def=0,total_noix_estim=0;
+  for(let i=1;i<=25;i++){
+    const p=gv('agr_p'+i),g=gv('agr_g'+i),po=gv('agr_po'+i),s=gv('agr_s'+i);
+    if(p>0){total_poids+=p;n_poids++;}
+    total_def+=g+po+s;
+    const noix_sac=Math.round(p>0?p*1000/425:40);
+    total_noix_estim+=noix_sac;
+  }
+  const poids_moy=n_poids>0?(total_poids/n_poids).toFixed(2):0;
+  const taux=total_noix_estim>0?Math.round((total_def/total_noix_estim)*100):0;
+  document.getElementById('agr_poids_moy').textContent=poids_moy||'—';
+  document.getElementById('agr_total_def').textContent=total_def||'—';
+  document.getElementById('agr_taux_def').textContent=taux>0?taux+'%':'—';
+  document.getElementById('agr_rbar').style.width=Math.min(taux,100)+'%';
+  const conforme=taux<=5;
+  const rm=document.getElementById('agr_resultat_metric');
+  document.getElementById('agr_resultat').textContent=total_noix_estim>0?(conforme?'CONFORME':'NON CONFORME'):'—';
+  rm.className='metric '+(conforme?'ok':'warn');
+}
+
+async function agrSave(){
+  const br_sel=document.getElementById('agr_br_select');
+  const br_id=br_sel.value;
+  if(!br_id){toast('Sélectionne un BR.','err');return;}
+  const br_num=br_sel.options[br_sel.selectedIndex]?.getAttribute('data-num')||'';
+  const sacs=[];
+  let total_poids=0,n_poids=0,total_def=0,total_noix=0;
+  for(let i=1;i<=25;i++){
+    const p=gv('agr_p'+i),g=gv('agr_g'+i),po=gv('agr_po'+i),s=gv('agr_s'+i);
+    sacs.push({num:i,poids_kg:p||null,germees:g,pourries:po,sous_poids:s});
+    if(p>0){total_poids+=p;n_poids++;}
+    total_def+=g+po+s;
+    total_noix+=Math.round(p>0?p*1000/425:40);
+  }
+  const poids_moy=n_poids>0?parseFloat((total_poids/n_poids).toFixed(2)):null;
+  const taux=total_noix>0?parseFloat(((total_def/total_noix)*100).toFixed(2)):0;
+  const resultat=taux<=5?'conforme':'non_conforme';
+  const {error}=await db.from('agreages').insert({
+    br_id,br_numero:br_num,
+    date_agreage:gt('agr_date')||new Date().toISOString().split('T')[0],
+    controleur_id:currentUser.id,
+    controleur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
+    sacs:JSON.stringify(sacs),total_sacs:25,
+    poids_moyen:poids_moy,taux_defauts:taux,resultat,notes:gt('agr_notes')
+  });
+  if(error){toast('Erreur: '+error.message,'err');return;}
+  await db.from('bons_reception').update({statut:resultat==='conforme'?'agreage_ok':'agreage_ko'}).eq('id',br_id);
+  toast('Agréage enregistré — Résultat : '+resultat.toUpperCase(),'ok');
+  genererRpAgr(br_num,poids_moy,taux_def_val=taux,resultat,sacs);
+  await loadBRList();
+  await loadAgrHisto();
+}
+
+function genererRpAgr(br_num,poids_moy,taux,resultat,sacs){
+  document.getElementById('rp_agr_date').textContent='Date : '+fmtDate(gt('agr_date'));
+  document.getElementById('rp_agr_ctrl').textContent=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
+  let html=`<div class="rp-sec"><div class="rp-sec-title">Bon de réception : ${br_num}</div>`;
+  html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">`;
+  html+=`<div class="rp-bl"><div class="l">Poids moyen/sac</div><div class="v">${poids_moy||'—'} kg</div></div>`;
+  html+=`<div class="rp-bl warn"><div class="l">Taux défauts</div><div class="v">${taux}%</div></div>`;
+  html+=`<div class="rp-bl ${resultat==='conforme'?'ok':'warn'}"><div class="l">Résultat</div><div class="v">${resultat==='conforme'?'CONFORME':'NON CONFORME'}</div></div>`;
+  html+=`</div>`;
+  html+=`<table class="rp-table"><thead><tr><th>Sac</th><th style="text-align:right">Poids (kg)</th><th style="text-align:right">Germées</th><th style="text-align:right">Pourries</th><th style="text-align:right">S/poids</th></tr></thead><tbody>`;
+  sacs.forEach(s=>{html+=`<tr><td>Sac ${s.num}</td><td style="text-align:right">${s.poids_kg||'—'}</td><td style="text-align:right">${s.germees||0}</td><td style="text-align:right">${s.pourries||0}</td><td style="text-align:right">${s.sous_poids||0}</td></tr>`;});
+  html+=`</tbody></table></div>`;
+  document.getElementById('rp_agr_content').innerHTML=html;
+  document.getElementById('rp_agr').classList.add('show');
+}
+
+async function loadAgrHisto(){
+  const {data}=await db.from('agreages').select('*').order('created_at',{ascending:false}).limit(30);
+  document.getElementById('tbody_agr').innerHTML=(data||[]).map(a=>`<tr>
+    <td>${fmtDate(a.date_agreage)}</td>
+    <td><b>${a.br_numero||'—'}</b></td>
+    <td>—</td>
+    <td>${a.poids_moyen||'—'} kg</td>
+    <td>${a.taux_defauts||0}%</td>
+    <td><span class="badge ${a.resultat==='conforme'?'b-green':'b-red'}">${a.resultat==='conforme'?'Conforme':'Non conforme'}</span></td>
+    <td>${a.controleur_nom||'—'}</td>
+  </tr>`).join('');
+}
+
+// ---- PRODUCTION ----
+async function loadProdBRSelect(){
+  const {data}=await db.from('bons_reception').select('*').in('statut',['agreage_ok','en_attente']).order('created_at',{ascending:false});
+  const sel=document.getElementById('p_br_select');
+  sel.innerHTML='<option value="">Sélectionner un BR...</option>';
+  (data||[]).forEach(b=>sel.innerHTML+=`<option value="${b.id}" data-fourn="${b.fournisseur_nom||''}" data-noix="${b.total_noix||0}">${b.numero} — ${b.fournisseur_nom||''}</option>`);
+}
+
+function prodLoadBR(){
+  const sel=document.getElementById('p_br_select');
+  const opt=sel.options[sel.selectedIndex];
+  if(!opt||!opt.value)return;
+  document.getElementById('p_fourn').value=opt.getAttribute('data-fourn');
+  const noix=parseInt(opt.getAttribute('data-noix')||0);
+  if(noix>0)document.getElementById('p_entree').value=noix;
+  pCalc();
+}
+
+function pCalc(){
+  const s=[gv('s1'),gv('s2'),gv('s3'),gv('s4'),gv('s5')];
+  const total=s.reduce((a,b)=>a+b,0);
+  const rej=gv('r_ss')+gv('r_ge')+gv('r_ec');
+  const entree=gv('p_entree')||(total+rej)||0;
+  const poids_e=gv('p_poids');
+  [0,1,2,3,4].forEach(i=>{document.getElementById('kg'+(i+1)).textContent=s[i]>0?'~'+Math.round(s[i]*MIDS[i]/1000)+' kg':'';});
+  const c40=gv('c40'),c50=gv('c50'),texp=c40+c50;
+  const kg_exp=Math.round(texp*SAC);
+  document.getElementById('p_exp_tot').textContent=texp>0?texp.toFixed(1)+' sacs':'—';
+  document.getElementById('p_exp_kg').textContent=texp>0?'~'+fmt(kg_exp)+' kg':'';
+  document.getElementById('m_e').textContent=entree>0?fmt(entree):'—';
+  document.getElementById('m_s').textContent=total>0?fmt(total):'—';
+  if(entree>0&&rej>0){
+    const tr=Math.min(100,Math.round((rej/entree)*100));
+    document.getElementById('m_r').textContent=tr+'%';
+    document.getElementById('m_r_noix').textContent=fmt(rej)+' noix';
+    document.getElementById('m_rbar_rej').style.width=tr+'%';
+  } else {
+    document.getElementById('m_r').textContent='—';
+    document.getElementById('m_r_noix').textContent='';
+    document.getElementById('m_rbar_rej').style.width='0%';
+  }
+  if(poids_e>0&&texp>0){
+    const r=Math.min(100,Math.round((kg_exp/poids_e)*100));
+    document.getElementById('m_rend').textContent=r+'%';
+    document.getElementById('m_rend_kg').textContent=fmt(kg_exp)+' kg / '+fmt(poids_e)+' kg';
+    document.getElementById('m_rbar').style.width=r+'%';
+  } else if(entree>0&&texp>0){
+    const nexp=Math.round(texp*SAC/((MIDS[0]+MIDS[1])/2));
+    const r=Math.min(100,Math.round((nexp/entree)*100));
+    document.getElementById('m_rend').textContent=r+'%';
+    document.getElementById('m_rend_kg').textContent=fmt(kg_exp)+' kg conditionné';
+    document.getElementById('m_rbar').style.width=r+'%';
+  } else {
+    document.getElementById('m_rend').textContent='—';
+    document.getElementById('m_rend_kg').textContent='';
+    document.getElementById('m_rbar').style.width='0%';
+  }
+}
+
+function pGenerer(){
+  const s=[gv('s1'),gv('s2'),gv('s3'),gv('s4'),gv('s5')];
+  const total=s.reduce((a,b)=>a+b,0);
+  const rej=gv('r_ss')+gv('r_ge')+gv('r_ec');
+  const entree=gv('p_entree')||(total+rej)||0;
+  const c40=gv('c40'),c50=gv('c50'),texp=c40+c50;
+  const kg_exp=Math.round(texp*SAC);
+  const poids_e=gv('p_poids');
+  const dateStr=fmtDate(gt('p_date'));
+  const oper_nom=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
+  document.getElementById('rp_date').textContent='Date : '+dateStr;
+  document.getElementById('rp_oper_sign').textContent=oper_nom;
+  const meta=[['Bon ODOO',gt('p_br_select')?document.getElementById('p_br_select').options[document.getElementById('p_br_select').selectedIndex]?.text?.split('—')[0]?.trim()||'—':'—'],['Date',dateStr],['Fournisseur',gt('p_fourn')||'—'],['Opérateur',oper_nom],['Noix entrées',entree>0?fmt(entree)+' noix':'—'],['Poids entrée',poids_e>0?fmt(poids_e)+' kg':'—']];
+  document.getElementById('rp_meta').innerHTML=meta.map(r=>'<div style="display:flex;gap:6px"><span style="color:var(--muted);min-width:110px">'+r[0]+'</span><span style="font-weight:500">'+r[1]+'</span></div>').join('');
+  const lbls=['S5 (801–1500g)','S4 (701–800g)','S3 (551–700g)','S2 (401–550g)','S1 (350–400g)'];
+  let sh='';
+  for(let i=4;i>=0;i--){const kg=Math.round(s[i]*MIDS[i]/1000);sh+='<tr><td>'+lbls[4-i]+'</td><td>'+['350–400g','401–550g','551–700g','701–800g','801–1500g'][i]+'</td><td style="text-align:right">'+fmt(s[i])+'</td><td style="text-align:right">~'+fmt(kg)+'</td></tr>';}
+  sh+='<tr class="tr-tot"><td colspan="2"><b>Total</b></td><td style="text-align:right"><b>'+fmt(total)+'</b></td><td></td></tr>';
+  document.getElementById('rp_sorties').innerHTML=sh;
+  document.getElementById('rp_cond').innerHTML='<tr class="tr-exp"><td><b>Calibre 40</b></td><td>21,5 kg</td><td style="text-align:right"><b>'+c40.toFixed(1)+'</b></td><td style="text-align:right">~'+fmt(Math.round(c40*SAC))+'</td></tr><tr class="tr-exp"><td><b>Calibre 50</b></td><td>21,5 kg</td><td style="text-align:right"><b>'+c50.toFixed(1)+'</b></td><td style="text-align:right">~'+fmt(Math.round(c50*SAC))+'</td></tr><tr class="tr-tot"><td colspan="2"><b>Total export</b></td><td style="text-align:right"><b>'+texp.toFixed(1)+'</b></td><td style="text-align:right"><b>~'+fmt(kg_exp)+'</b></td></tr>';
+  document.getElementById('rp_rej').innerHTML='<tr><td>Sous-poids (&lt;350g)</td><td style="text-align:right">'+fmt(gv('r_ss'))+'</td></tr><tr><td>Noix germées</td><td style="text-align:right">'+fmt(gv('r_ge'))+'</td></tr><tr><td>Noix écartées</td><td style="text-align:right">'+fmt(gv('r_ec'))+'</td></tr><tr class="tr-tot"><td><b>Total rejets</b></td><td style="text-align:right"><b>'+fmt(rej)+'</b></td></tr>';
+  let rend='—',taux_r='—';
+  if(poids_e>0&&texp>0) rend=Math.min(100,Math.round((kg_exp/poids_e)*100))+'%';
+  else if(entree>0&&texp>0){const nexp=Math.round(texp*SAC/((MIDS[0]+MIDS[1])/2));rend=Math.min(100,Math.round((nexp/entree)*100))+'%';}
+  if(entree>0&&rej>0) taux_r=Math.min(100,Math.round((rej/entree)*100))+'%';
+  document.getElementById('rp_bilan').innerHTML='<div class="rp-bl"><div class="l">Entrée (noix)</div><div class="v">'+fmt(entree)+'</div></div><div class="rp-bl"><div class="l">Total sorties</div><div class="v">'+fmt(total)+'</div></div><div class="rp-bl warn"><div class="l">Taux de rejet</div><div class="v">'+taux_r+'</div></div><div class="rp-bl ok"><div class="l">Rendement export</div><div class="v">'+rend+'</div></div>';
+  document.getElementById('rp_prod').classList.add('show');
+  document.getElementById('btn_valider').style.display='inline-block';
+  document.getElementById('rp_prod').scrollIntoView({behavior:'smooth'});
+}
+
+async function pValider(){
+  const s=[gv('s1'),gv('s2'),gv('s3'),gv('s4'),gv('s5')];
+  const c40=gv('c40'),c50=gv('c50');
+  const entree=gv('p_entree')||0;
+  const poids_e=gv('p_poids');
+  const rej=gv('r_ss')+gv('r_ge')+gv('r_ec');
+  const kg_exp=Math.round((c40+c50)*SAC);
+  let rend=0;
+  if(poids_e>0&&(c40+c50)>0) rend=Math.min(100,Math.round((kg_exp/poids_e)*100));
+  else if(entree>0&&(c40+c50)>0){const nexp=Math.round((c40+c50)*SAC/((MIDS[0]+MIDS[1])/2));rend=Math.min(100,Math.round((nexp/entree)*100));}
+  const taux_rej=entree>0&&rej>0?Math.min(100,Math.round((rej/entree)*100)):0;
+  const br_sel=document.getElementById('p_br_select');
+  const br_id=br_sel.value||null;
+  const br_num=br_id?br_sel.options[br_sel.selectedIndex]?.text?.split('—')[0]?.trim():null;
+  const {error}=await db.from('productions').insert({
+    br_id,br_numero:br_num,
+    date_production:gt('p_date')||new Date().toISOString().split('T')[0],
+    fournisseur_nom:gt('p_fourn'),
+    operateur_id:currentUser.id,
+    operateur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
+    noix_entrees:entree,poids_entree_kg:poids_e||null,
+    s1_noix:s[0],s2_noix:s[1],s3_noix:s[2],s4_noix:s[3],s5_noix:s[4],
+    sacs_cal40:c40,sacs_cal50:c50,
+    rejet_ss_poids:gv('r_ss'),rejet_germees:gv('r_ge'),rejet_ecartees:gv('r_ec'),
+    rendement_export:rend,taux_rejet:taux_rej,statut:'valide'
+  });
+  if(error){toast('Erreur sauvegarde: '+error.message,'err');return;}
+  if(br_id) await db.from('bons_reception').update({statut:'calibrage_ok'}).eq('id',br_id);
+  await updateStock(c40,c50,s[2],s[3],s[4],'entree_production',br_num||'Production');
+  toast('Production validée ! Stock mis à jour.','ok');
+  document.getElementById('btn_valider').disabled=true;
+  document.getElementById('btn_valider').textContent='✓ Validé';
+  await loadBRList();
+  await loadStock();
+}
+
+function pReset(){
+  ['p_br_select','p_date','p_fourn','p_entree','p_poids','s1','s2','s3','s4','s5','c40','c50','r_ss','r_ge','r_ec'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  [1,2,3,4,5].forEach(i=>document.getElementById('kg'+i).textContent='');
+  ['m_e','m_s','m_r','m_rend'].forEach(id=>document.getElementById(id).textContent='—');
+  ['m_r_noix','m_rend_kg'].forEach(id=>document.getElementById(id).textContent='');
+  ['m_rbar','m_rbar_rej'].forEach(id=>document.getElementById(id).style.width='0%');
+  document.getElementById('p_exp_tot').textContent='—';
+  document.getElementById('p_exp_kg').textContent='';
+  document.getElementById('rp_prod').classList.remove('show');
+  const bv=document.getElementById('btn_valider');bv.style.display='none';bv.disabled=false;bv.textContent='✓ Valider & envoyer au stock';
+  document.getElementById('p_date').valueAsDate=new Date();
+}
+
+// ---- STOCK ----
+async function loadStock(){
+  const {data}=await db.from('stock_pf').select('*').single();
+  if(data)stockData=data;
+  updateBadge();
+}
+
+async function updateStock(c40,c50,s3,s4,s5,type,ref){
+  const new_c40=(stockData.cal40_sacs||0)+(c40||0);
+  const new_c50=(stockData.cal50_sacs||0)+(c50||0);
+  const new_s3=(stockData.s3_noix||0)+(s3||0);
+  const new_s4=(stockData.s4_noix||0)+(s4||0);
+  const new_s5=(stockData.s5_noix||0)+(s5||0);
+  await db.from('stock_pf').update({cal40_sacs:new_c40,cal50_sacs:new_c50,s3_noix:new_s3,s4_noix:new_s4,s5_noix:new_s5,updated_at:new Date().toISOString()}).eq('id',stockData.id);
+  await db.from('mouvements_stock').insert({type,reference:ref,cal40:c40||0,cal50:c50||0,s3:s3||0,s4:s4||0,s5:s5||0,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
+  stockData={...stockData,cal40_sacs:new_c40,cal50_sacs:new_c50,s3_noix:new_s3,s4_noix:new_s4,s5_noix:new_s5};
+  updateBadge();
+}
+
+function renderStock(){
+  document.getElementById('st_c40').textContent=fmt(stockData.cal40_sacs||0);
+  document.getElementById('st_c50').textContent=fmt(stockData.cal50_sacs||0);
+  document.getElementById('st_s3').textContent=fmt(stockData.s3_noix||0);
+  document.getElementById('st_s4').textContent=fmt(stockData.s4_noix||0);
+  document.getElementById('st_s5').textContent=fmt(stockData.s5_noix||0);
+  loadStockMoves();
+}
+
+async function loadStockMoves(){
+  const {data}=await db.from('mouvements_stock').select('*').order('created_at',{ascending:false}).limit(40);
+  document.getElementById('tbody_stock').innerHTML=(data||[]).map(m=>`<tr>
+    <td>${fmtDate(m.created_at?.split('T')[0])}</td>
+    <td><span class="badge ${m.type.includes('entree')?'b-green':'b-red'}">${{entree_production:'Entrée production',sortie_chargement:'Sortie chargement',sortie_manuelle:'Sortie manuelle',correction:'Correction'}[m.type]||m.type}</span></td>
+    <td>${m.reference||'—'}</td>
+    <td>${m.cal40>=0?'+':''}<b>${m.cal40||0}</b></td>
+    <td>${m.cal50>=0?'+':''}<b>${m.cal50||0}</b></td>
+    <td>${m.user_nom||'—'}</td>
+  </tr>`).join('');
+}
+
+async function stockSortie(){
+  const c40=gv('out_c40'),c50=gv('out_c50');
+  if(c40>(stockData.cal40_sacs||0)||c50>(stockData.cal50_sacs||0)){toast('Stock insuffisant !','err');return;}
+  if(c40===0&&c50===0){toast('Saisir une quantité.','err');return;}
+  const motif=gt('out_motif')||'Sortie manuelle';
+  await updateStock(-c40,-c50,0,0,0,'sortie_manuelle',motif);
+  ['out_c40','out_c50','out_motif'].forEach(id=>document.getElementById(id).value='');
+  toast('Stock mis à jour.','ok');
+  renderStock();
+}
+
+function updateBadge(){
+  const t=Math.round((stockData.cal40_sacs||0)+(stockData.cal50_sacs||0));
+  document.getElementById('badge_stock').textContent=t>999?'999+':t;
+}
+
+// ---- PACKING LIST ----
+function plInit(){if(plPallets.length===0)for(let i=1;i<=22;i++)plPallets.push({num:i,gg_a:'',bio_a:'',gg_b:'',bio_b:''});plRender();}
+function plRender(){
+  document.getElementById('pl_tbody').innerHTML=plPallets.map((p,i)=>'<tr><td style="font-weight:700;background:#f0f4ff">'+p.num+'</td><td><input type="number" min="0" value="'+(p.gg_a||'')+'" oninput="plUpd('+i+',\'gg_a\',this.value)" placeholder="0"></td><td><input type="number" min="0" value="'+(p.bio_a||'')+'" oninput="plUpd('+i+',\'bio_a\',this.value)" placeholder="0"></td><td><input type="number" min="0" value="'+(p.gg_b||'')+'" oninput="plUpd('+i+',\'gg_b\',this.value)" placeholder="0"></td><td><input type="number" min="0" value="'+(p.bio_b||'')+'" oninput="plUpd('+i+',\'bio_b\',this.value)" placeholder="0"></td><td style="font-weight:700;background:#eef5ee" id="ptgg'+i+'">'+(((parseInt(p.gg_a)||0)+(parseInt(p.gg_b)||0))||'')+'</td><td style="font-weight:700;background:#eef5ee" id="ptbio'+i+'">'+(((parseInt(p.bio_a)||0)+(parseInt(p.bio_b)||0))||'')+'</td></tr>').join('');
+  plTotals();
+}
+function plUpd(i,f,v){plPallets[i][f]=v;const p=plPallets[i];document.getElementById('ptgg'+i).textContent=(((parseInt(p.gg_a)||0)+(parseInt(p.gg_b)||0))||'');document.getElementById('ptbio'+i).textContent=(((parseInt(p.bio_a)||0)+(parseInt(p.bio_b)||0))||'');plTotals();}
+function plTotals(){
+  const ga=plPallets.reduce((s,p)=>s+(parseInt(p.gg_a)||0),0),ba=plPallets.reduce((s,p)=>s+(parseInt(p.bio_a)||0),0),gb=plPallets.reduce((s,p)=>s+(parseInt(p.gg_b)||0),0),bb=plPallets.reduce((s,p)=>s+(parseInt(p.bio_b)||0),0),npb=gv('pl_npb')||40;
+  document.getElementById('pl_tfoot').innerHTML='<tr class="tot-row"><td><b>BAGS</b></td><td><b>'+ga+'</b></td><td><b>'+ba+'</b></td><td><b>'+gb+'</b></td><td><b>'+bb+'</b></td><td><b>'+(ga+gb)+'</b></td><td><b>'+(ba+bb)+'</b></td></tr><tr class="tot-row"><td><b>NUTS</b></td><td><b>'+ga*npb+'</b></td><td><b>'+ba*npb+'</b></td><td><b>'+gb*npb+'</b></td><td><b>'+bb*npb+'</b></td><td><b>'+(ga+gb)*npb+'</b></td><td><b>'+(ba+bb)*npb+'</b></td></tr>';
+}
+function plAddPallet(){plPallets.push({num:plPallets.length+1,gg_a:'',bio_a:'',gg_b:'',bio_b:''});plRender();}
+function plRemovePallet(){if(plPallets.length>1){plPallets.pop();plRender();}}
+function plAutoFill(){
+  if((stockData.cal40_sacs||0)+(stockData.cal50_sacs||0)===0){toast('Stock vide !','err');return;}
+  plPallets=[];let rg=stockData.cal40_sacs||0,rb=stockData.cal50_sacs||0,n=1;
+  while(rg>0||rb>0){const tg=Math.min(rg,50),tb=Math.min(rb,50);plPallets.push({num:n++,gg_a:tg||'',bio_a:tb||'',gg_b:'',bio_b:''});rg-=tg;rb-=tb;}
+  plRender();
+}
+function plGenerer(){
+  const ga=plPallets.reduce((s,p)=>s+(parseInt(p.gg_a)||0),0),ba=plPallets.reduce((s,p)=>s+(parseInt(p.bio_a)||0),0),gb=plPallets.reduce((s,p)=>s+(parseInt(p.gg_b)||0),0),bb=plPallets.reduce((s,p)=>s+(parseInt(p.bio_b)||0),0),npb=gv('pl_npb')||40;
+  document.getElementById('rp_pl_sub').textContent=(gt('pl_client')||'')+' — SEM '+(gt('pl_sem')||'');
+  document.getElementById('rp_pl_date').textContent='Potting : '+fmtDate(gt('pl_potting'));
+  document.getElementById('rp_pl_sign').textContent=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
+  const refs=[['GGN / Certif.',gt('pl_ggn')||'—'],['Batch N°',gt('pl_batch')||'—'],['Container N°',gt('pl_cont')||'—'],['Lead N°',gt('pl_lead')||'—'],['Ship / Voyage',gt('pl_ship')||'—'],['Country',gt('pl_country')||'—'],['Net weight','21,5 (+/-5%) kg'],['ETD – ETA',fmtDate(gt('pl_etd'))+' – '+fmtDate(gt('pl_eta'))]];
+  document.getElementById('rp_pl_refs').innerHTML=refs.map(r=>'<div style="display:flex;gap:6px"><span style="color:var(--muted);min-width:110px">'+r[0]+'</span><span style="font-weight:500">'+r[1]+'</span></div>').join('');
+  let th='<table class="rp-table"><thead><tr><th>PALLET</th><th>GG (A)</th><th>BIO (A)</th><th>GG (B)</th><th>BIO (B)</th><th>TOT GG</th><th>TOT BIO</th></tr></thead><tbody>';
+  plPallets.forEach(p=>{const tg=(parseInt(p.gg_a)||0)+(parseInt(p.gg_b)||0),tb=(parseInt(p.bio_a)||0)+(parseInt(p.bio_b)||0);th+='<tr><td style="text-align:center;font-weight:700">'+p.num+'</td><td style="text-align:center">'+(p.gg_a||'')+'</td><td style="text-align:center">'+(p.bio_a||'')+'</td><td style="text-align:center">'+(p.gg_b||'')+'</td><td style="text-align:center">'+(p.bio_b||'')+'</td><td style="text-align:center;font-weight:700">'+(tg||'')+'</td><td style="text-align:center;font-weight:700">'+(tb||'')+'</td></tr>';});
+  th+='<tr class="tr-tot"><td><b>BAGS</b></td><td><b>'+ga+'</b></td><td><b>'+ba+'</b></td><td><b>'+gb+'</b></td><td><b>'+bb+'</b></td><td><b>'+(ga+gb)+'</b></td><td><b>'+(ba+bb)+'</b></td></tr><tr class="tr-tot"><td><b>NUTS</b></td><td><b>'+ga*npb+'</b></td><td><b>'+ba*npb+'</b></td><td><b>'+gb*npb+'</b></td><td><b>'+bb*npb+'</b></td><td><b>'+(ga+gb)*npb+'</b></td><td><b>'+(ba+bb)*npb+'</b></td></tr></tbody></table>';
+  document.getElementById('rp_pl_table').innerHTML=th;
+  document.getElementById('rp_pl').classList.add('show');
+  document.getElementById('btn_pl_valider').style.display='inline-block';
+  document.getElementById('rp_pl').scrollIntoView({behavior:'smooth'});
+}
+async function plValider(){
+  const ga=plPallets.reduce((s,p)=>s+(parseInt(p.gg_a)||0),0),ba=plPallets.reduce((s,p)=>s+(parseInt(p.bio_a)||0),0),gb=plPallets.reduce((s,p)=>s+(parseInt(p.gg_b)||0),0),bb=plPallets.reduce((s,p)=>s+(parseInt(p.bio_b)||0),0);
+  const tot_gg=ga+gb,tot_bio=ba+bb;
+  if(tot_gg>(stockData.cal40_sacs||0)||tot_bio>(stockData.cal50_sacs||0)){toast('Stock insuffisant ! Cal40: '+Math.round(stockData.cal40_sacs||0)+' / Cal50: '+Math.round(stockData.cal50_sacs||0),'err');return;}
+  const ref=(gt('pl_client')||'CLIENT')+' SEM'+(gt('pl_sem')||'');
+  const {error}=await db.from('packing_lists').insert({client:gt('pl_client'),semaine:gt('pl_sem'),batch_num:gt('pl_batch'),ggn:gt('pl_ggn'),date_potting:gt('pl_potting')||null,container_num:gt('pl_cont'),lead_num:gt('pl_lead'),navire:gt('pl_ship'),pays_destination:gt('pl_country'),etd:gt('pl_etd')||null,eta:gt('pl_eta')||null,noix_par_sac:gv('pl_npb')||40,palettes:JSON.stringify(plPallets),total_sacs_gg:tot_gg,total_sacs_bio:tot_bio,statut:'valide',user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
+  if(error){toast('Erreur: '+error.message,'err');return;}
+  await updateStock(-tot_gg,-tot_bio,0,0,0,'sortie_chargement',ref);
+  toast('Packing list validée ! Stock débité.','ok');
+  document.getElementById('btn_pl_valider').disabled=true;
+  document.getElementById('btn_pl_valider').textContent='✓ Validé';
+}
+function plReset(){plPallets=[];plInit();document.getElementById('rp_pl').classList.remove('show');const bv=document.getElementById('btn_pl_valider');bv.style.display='none';bv.disabled=false;bv.textContent='✓ Valider & débiter stock';['pl_client','pl_sem','pl_batch','pl_ggn','pl_potting','pl_cont','pl_lead','pl_ship','pl_country','pl_etd','pl_eta'].forEach(id=>document.getElementById(id).value='');document.getElementById('pl_npb').value='40';}
+
+// ---- ADMIN ----
+async function loadAdminUsers(){
+  const {data}=await db.from('profiles').select('*').order('nom');
+  const roles={admin:'Admin',operateur:'Opérateur',controleur:'Contrôleur',logistique:'Logistique'};
+  const colors={admin:'b-red',operateur:'b-blue',controleur:'b-green',logistique:'b-orange'};
+  document.getElementById('adm_users_list').innerHTML=(data||[]).map(u=>`<div class="user-card">
+    <div class="user-avatar">${(u.prenom||'?')[0]}${(u.nom||'?')[0]}</div>
+    <div class="user-info"><div class="user-name">${u.prenom} ${u.nom}</div><div class="user-role">${u.id===currentUser?.id?'(vous) ':''}<span class="badge ${colors[u.role]||'b-gray'}">${roles[u.role]||u.role}</span></div></div>
+    ${u.id!==currentUser?.id?'<button class="btn sm red" onclick="admDeleteUser(\''+u.id+'\')">Suppr.</button>':''}
+  </div>`).join('');
+}
+
+async function admCreateUser(){
+  const email=gt('adm_email'),pass=gt('adm_pass'),prenom=gt('adm_prenom'),nom=gt('adm_nom'),role=gt('adm_role');
+  if(!email||!pass||!prenom||!nom){toast('Remplis tous les champs.','err');return;}
+  if(pass.length<8){toast('Mot de passe minimum 8 caractères.','err');return;}
+  const {data,error}=await db.auth.admin.createUser({email,password:pass,email_confirm:true});
+  if(error){toast('Erreur création auth: '+error.message,'err');return;}
+  const {error:e2}=await db.from('profiles').insert({id:data.user.id,prenom,nom,role});
+  if(e2){toast('Erreur profil: '+e2.message,'err');return;}
+  toast('Utilisateur créé : '+prenom+' '+nom,'ok');
+  ['adm_prenom','adm_nom','adm_email','adm_pass'].forEach(id=>document.getElementById(id).value='');
+  loadAdminUsers();
+}
+
+async function admDeleteUser(id){
+  if(!confirm('Supprimer cet utilisateur ?'))return;
+  await db.from('profiles').delete().eq('id',id);
+  toast('Utilisateur supprimé');
+  loadAdminUsers();
+}
+
+async function loadAdminFourn(){
+  const {data}=await db.from('fournisseurs').select('*').eq('actif',true).order('nom');
+  document.getElementById('adm_fourn_list').innerHTML=(data||[]).map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0ec"><span>${f.nom}</span><button class="btn sm" onclick="admDelFourn('${f.id}')">Suppr.</button></div>`).join('');
+}
+
+async function admAddFourn(){
+  const nom=gt('adm_fourn_nom');if(!nom)return;
+  await db.from('fournisseurs').insert({nom});
+  document.getElementById('adm_fourn_nom').value='';
+  await loadFournisseurs();
+  loadAdminFourn();
+  toast('Fournisseur ajouté');
+}
+
+async function admDelFourn(id){
+  await db.from('fournisseurs').update({actif:false}).eq('id',id);
+  await loadFournisseurs();
+  loadAdminFourn();
+  toast('Fournisseur supprimé');
+}
+
+// ---- INIT ----
+document.getElementById('br_date').valueAsDate=new Date();
+document.getElementById('agr_date').valueAsDate=new Date();
+document.getElementById('p_date').valueAsDate=new Date();
+plInit();
+</script>
+</body>
+</html>
