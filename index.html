@@ -420,12 +420,12 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
   </div>
 </div>
 <div class="card">
-  <div class="card-title">Calibrage par grade — Sacs de 21,5 kg</div>
+  <div class="card-title">Calibrage par grade — Saisie en noix</div>
   <div class="g4">
-    <div class="sc"><label>Grade 30</label><small>800–1500 g</small><input type="number" id="g30" min="0" placeholder="sacs" oninput="pCalc()"><div class="kg" id="kgg30"></div></div>
-    <div class="sc"><label>Grade 35</label><small>700–800 g</small><input type="number" id="g35" min="0" placeholder="sacs" oninput="pCalc()"><div class="kg" id="kgg35"></div></div>
-    <div class="sc"><label>Grade 40</label><small>551–700 g</small><input type="number" id="g40" min="0" placeholder="sacs" oninput="pCalc()"><div class="kg" id="kgg40"></div></div>
-    <div class="sc"><label>Grade 50</label><small>401–550 g</small><input type="number" id="g50" min="0" placeholder="sacs" oninput="pCalc()"><div class="kg" id="kgg50"></div></div>
+    <div class="sc"><label>Grade 30</label><small>800–1500 g · 30 noix/sac</small><input type="number" id="g30" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kgg30"></div></div>
+    <div class="sc"><label>Grade 35</label><small>700–800 g · 35 noix/sac</small><input type="number" id="g35" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kgg35"></div></div>
+    <div class="sc"><label>Grade 40</label><small>551–700 g · 40 noix/sac</small><input type="number" id="g40" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kgg40"></div></div>
+    <div class="sc"><label>Grade 50</label><small>401–550 g · 50 noix/sac</small><input type="number" id="g50" min="0" placeholder="noix" oninput="pCalc()"><div class="kg" id="kgg50"></div></div>
   </div>
   <div class="cond-total" style="margin-top:14px">
     <div><div style="font-size:13px;font-weight:600">Total export conditionné</div><div style="font-size:11px;color:var(--muted)">Grade 30 + 35 + 40 + 50</div></div>
@@ -669,6 +669,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 const SAC=21.5, MIDS=[375,475,625,750,1000];
 const POIDS_NOIX=450; // poids moyen théorique d'une noix brute en grammes
+const NPS={g30:30,g35:35,g40:40,g50:50}; // noix par sac selon le grade
 const { createClient } = supabase;
 const db = createClient(SUPA_URL, SUPA_KEY);
 
@@ -1373,15 +1374,17 @@ function pPoidsTheo(){
 }
 
 function pCalc(){
-  const g=[gv('g30'),gv('g35'),gv('g40'),gv('g50')]; // sacs par grade
-  const texp=g.reduce((a,b)=>a+b,0); // total sacs
+  // Saisie en noix par grade → conversion en sacs (noix ÷ noix-par-sac)
+  const noixG={g30:gv('g30'),g35:gv('g35'),g40:gv('g40'),g50:gv('g50')};
+  const sacsG={g30:Math.round(noixG.g30/NPS.g30),g35:Math.round(noixG.g35/NPS.g35),g40:Math.round(noixG.g40/NPS.g40),g50:Math.round(noixG.g50/NPS.g50)};
+  const texp=sacsG.g30+sacsG.g35+sacsG.g40+sacsG.g50; // total sacs
   const kg_exp=Math.round(texp*SAC);
   const rej=gv('r_ss')+gv('r_ge')+gv('r_ec');
   const poids_e=gv('p_poids');
   const entree=gv('p_entree')||0;
-  // Affiche le poids estimé par grade
-  ['g30','g35','g40','g50'].forEach(id=>{const v=gv(id);document.getElementById('kg'+id).textContent=v>0?'~'+fmt(Math.round(v*SAC))+' kg':'';});
-  document.getElementById('p_exp_tot').textContent=texp>0?texp.toFixed(0)+' sacs':'—';
+  // Affiche les sacs calculés par grade
+  ['g30','g35','g40','g50'].forEach(id=>{const el=document.getElementById('kg'+id);el.textContent=sacsG[id]>0?sacsG[id]+' sacs (~'+fmt(Math.round(sacsG[id]*SAC))+' kg)':'';});
+  document.getElementById('p_exp_tot').textContent=texp>0?texp+' sacs':'—';
   document.getElementById('p_exp_kg').textContent=texp>0?'~'+fmt(kg_exp)+' kg':'';
   document.getElementById('m_e').textContent=entree>0?fmt(entree):'—';
   document.getElementById('m_s').textContent=texp>0?fmt(texp)+' sacs':'—';
@@ -1408,8 +1411,14 @@ function pCalc(){
 }
 
 function pGenerer(){
-  const grades=[{n:'Grade 30',f:'800–1500 g',v:gv('g30')},{n:'Grade 35',f:'700–800 g',v:gv('g35')},{n:'Grade 40',f:'551–700 g',v:gv('g40')},{n:'Grade 50',f:'401–550 g',v:gv('g50')}];
-  const texp=grades.reduce((a,b)=>a+b.v,0);
+  const noixG={g30:gv('g30'),g35:gv('g35'),g40:gv('g40'),g50:gv('g50')};
+  const grades=[
+    {n:'Grade 30',f:'800–1500 g',noix:noixG.g30,sacs:Math.round(noixG.g30/NPS.g30)},
+    {n:'Grade 35',f:'700–800 g',noix:noixG.g35,sacs:Math.round(noixG.g35/NPS.g35)},
+    {n:'Grade 40',f:'551–700 g',noix:noixG.g40,sacs:Math.round(noixG.g40/NPS.g40)},
+    {n:'Grade 50',f:'401–550 g',noix:noixG.g50,sacs:Math.round(noixG.g50/NPS.g50)}
+  ];
+  const texp=grades.reduce((a,b)=>a+b.sacs,0);
   const kg_exp=Math.round(texp*SAC);
   const rej=gv('r_ss')+gv('r_ge')+gv('r_ec');
   const entree=gv('p_entree')||0;
@@ -1421,12 +1430,11 @@ function pGenerer(){
   document.getElementById('rp_oper_sign').textContent=oper_nom;
   const meta=[['N° Traitement',trtNum],['Date',dateStr],['Fournisseur',gt('p_fourn')||'—'],['Opérateur',oper_nom],['Noix entrées',entree>0?fmt(entree)+' noix':'—'],['Poids entrée',poids_e>0?fmt(poids_e)+' kg':'—']];
   document.getElementById('rp_meta').innerHTML=meta.map(r=>'<div style="display:flex;gap:6px"><span style="color:var(--muted);min-width:110px">'+r[0]+'</span><span style="font-weight:500">'+r[1]+'</span></div>').join('');
-  // Tableau grades
-  let sh='';
-  grades.forEach(g=>{sh+='<tr class="tr-exp"><td><b>'+g.n+'</b></td><td>'+g.f+'</td><td style="text-align:right">'+g.v.toFixed(0)+'</td><td style="text-align:right">~'+fmt(Math.round(g.v*SAC))+'</td></tr>';});
-  sh+='<tr class="tr-tot"><td colspan="2"><b>Total export</b></td><td style="text-align:right"><b>'+texp.toFixed(0)+'</b></td><td style="text-align:right"><b>~'+fmt(kg_exp)+'</b></td></tr>';
+  // Tableau grades : noix + sacs
+  let sh='<tr style="font-size:11px;color:#888"><td></td><td></td><td style="text-align:right">Noix</td><td style="text-align:right">Sacs</td></tr>';
+  grades.forEach(g=>{sh+='<tr class="tr-exp"><td><b>'+g.n+'</b></td><td>'+g.f+'</td><td style="text-align:right">'+fmt(g.noix)+'</td><td style="text-align:right"><b>'+g.sacs+'</b></td></tr>';});
+  sh+='<tr class="tr-tot"><td colspan="2"><b>Total export</b></td><td style="text-align:right"><b>'+fmt(grades.reduce((a,b)=>a+b.noix,0))+'</b></td><td style="text-align:right"><b>'+texp+' sacs</b></td></tr>';
   document.getElementById('rp_sorties').innerHTML=sh;
-  // On masque la table conditionnement séparée (intégrée dans grades)
   const condEl=document.getElementById('rp_cond');if(condEl)condEl.closest('.rp-sec').style.display='none';
   document.getElementById('rp_rej').innerHTML='<tr><td>Rejets sous-poids (&lt;400g)</td><td style="text-align:right">'+fmt(gv('r_ss'))+'</td></tr><tr><td>Noix germées</td><td style="text-align:right">'+fmt(gv('r_ge'))+'</td></tr><tr><td>Noix écartées</td><td style="text-align:right">'+fmt(gv('r_ec'))+'</td></tr><tr class="tr-tot"><td><b>Total rejets</b></td><td style="text-align:right"><b>'+fmt(rej)+'</b></td></tr>';
   let rend='—',taux_r='—';
@@ -1445,7 +1453,8 @@ function pGenerer(){
 }
 
 async function pValider(){
-  const g30=gv('g30'),g35=gv('g35'),g40=gv('g40'),g50=gv('g50');
+  const noixG={g30:gv('g30'),g35:gv('g35'),g40:gv('g40'),g50:gv('g50')};
+  const g30=Math.round(noixG.g30/NPS.g30),g35=Math.round(noixG.g35/NPS.g35),g40=Math.round(noixG.g40/NPS.g40),g50=Math.round(noixG.g50/NPS.g50);
   const texp=g30+g35+g40+g50;
   const entree=gv('p_entree')||0;
   const poids_e=gv('p_poids');
@@ -1469,6 +1478,7 @@ async function pValider(){
     operateur_id:currentUser.id,
     operateur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
     noix_entrees:entree,poids_entree_kg:poids_e||null,
+    grade30_noix:noixG.g30,grade35_noix:noixG.g35,grade40_noix:noixG.g40,grade50_noix:noixG.g50,
     grade30_sacs:g30,grade35_sacs:g35,grade40_sacs:g40,grade50_sacs:g50,
     rejet_ss_poids:gv('r_ss'),rejet_germees:gv('r_ge'),rejet_ecartees:gv('r_ec'),
     rendement_export:rend,taux_rejet:taux_rej,statut:'valide'
@@ -1477,7 +1487,7 @@ async function pValider(){
   if(trt_id) await db.from('traitements').update({statut:'calibre'}).eq('id',trt_id);
   if(br_id) await db.from('bons_reception').update({statut:'calibrage_ok'}).eq('id',br_id);
   await updateStock(g30,g35,g40,g50,'entree_production',lot_num||br_num||'Production');
-  toast('Production validée ! Lot '+lot_num+' créé. Stock mis à jour.','ok');
+  toast('Production validée ! Lot '+lot_num+' créé ('+texp+' sacs). Stock mis à jour.','ok');
   document.getElementById('btn_valider').disabled=true;
   document.getElementById('btn_valider').textContent='✓ Validé';
   const rappel=document.getElementById('btn_valider_rappel');if(rappel)rappel.innerHTML='<p style="text-align:center;color:var(--green);font-weight:600;margin-top:12px">✓ Production validée — Lot '+lot_num+'</p>';
@@ -1537,17 +1547,22 @@ async function loadProdHisto(){
 async function prodRegenerer(id){
   const {data:p}=await db.from('productions').select('*').eq('id',id).single();
   if(!p)return;
-  const grades=[{n:'Grade 30',f:'800–1500 g',v:p.grade30_sacs||0},{n:'Grade 35',f:'700–800 g',v:p.grade35_sacs||0},{n:'Grade 40',f:'551–700 g',v:p.grade40_sacs||0},{n:'Grade 50',f:'401–550 g',v:p.grade50_sacs||0}];
-  const texp=grades.reduce((a,b)=>a+b.v,0);
+  const grades=[
+    {n:'Grade 30',f:'800–1500 g',noix:p.grade30_noix||0,sacs:p.grade30_sacs||0},
+    {n:'Grade 35',f:'700–800 g',noix:p.grade35_noix||0,sacs:p.grade35_sacs||0},
+    {n:'Grade 40',f:'551–700 g',noix:p.grade40_noix||0,sacs:p.grade40_sacs||0},
+    {n:'Grade 50',f:'401–550 g',noix:p.grade50_noix||0,sacs:p.grade50_sacs||0}
+  ];
+  const texp=grades.reduce((a,b)=>a+b.sacs,0);
   const kg_exp=Math.round(texp*SAC);
   const rej=(p.rejet_ss_poids||0)+(p.rejet_germees||0)+(p.rejet_ecartees||0);
   document.getElementById('rp_date').textContent='Date : '+fmtDate(p.date_production);
   document.getElementById('rp_oper_sign').textContent=p.operateur_nom||'—';
   const meta=[['N° Traitement',p.traitement_numero||'—'],['N° Lot',p.lot_numero||'—'],['Date',fmtDate(p.date_production)],['Fournisseur',p.fournisseur_nom||'—'],['Opérateur',p.operateur_nom||'—'],['Noix entrées',fmt(p.noix_entrees||0)+' noix'],['Poids entrée',p.poids_entree_kg?fmt(p.poids_entree_kg)+' kg':'—']];
   document.getElementById('rp_meta').innerHTML=meta.map(r=>'<div style="display:flex;gap:6px"><span style="color:var(--muted);min-width:110px">'+r[0]+'</span><span style="font-weight:500">'+r[1]+'</span></div>').join('');
-  let sh='';
-  grades.forEach(g=>{sh+='<tr class="tr-exp"><td><b>'+g.n+'</b></td><td>'+g.f+'</td><td style="text-align:right">'+g.v.toFixed(0)+'</td><td style="text-align:right">~'+fmt(Math.round(g.v*SAC))+'</td></tr>';});
-  sh+='<tr class="tr-tot"><td colspan="2"><b>Total export</b></td><td style="text-align:right"><b>'+texp.toFixed(0)+'</b></td><td style="text-align:right"><b>~'+fmt(kg_exp)+'</b></td></tr>';
+  let sh='<tr style="font-size:11px;color:#888"><td></td><td></td><td style="text-align:right">Noix</td><td style="text-align:right">Sacs</td></tr>';
+  grades.forEach(g=>{sh+='<tr class="tr-exp"><td><b>'+g.n+'</b></td><td>'+g.f+'</td><td style="text-align:right">'+fmt(g.noix)+'</td><td style="text-align:right"><b>'+g.sacs+'</b></td></tr>';});
+  sh+='<tr class="tr-tot"><td colspan="2"><b>Total export</b></td><td style="text-align:right"><b>'+fmt(grades.reduce((a,b)=>a+b.noix,0))+'</b></td><td style="text-align:right"><b>'+texp+' sacs</b></td></tr>';
   document.getElementById('rp_sorties').innerHTML=sh;
   const condEl=document.getElementById('rp_cond');if(condEl)condEl.closest('.rp-sec').style.display='none';
   document.getElementById('rp_rej').innerHTML='<tr><td>Rejets sous-poids (&lt;400g)</td><td style="text-align:right">'+fmt(p.rejet_ss_poids||0)+'</td></tr><tr><td>Germées</td><td style="text-align:right">'+fmt(p.rejet_germees||0)+'</td></tr><tr><td>Écartées</td><td style="text-align:right">'+fmt(p.rejet_ecartees||0)+'</td></tr><tr class="tr-tot"><td><b>Total</b></td><td style="text-align:right"><b>'+fmt(rej)+'</b></td></tr>';
