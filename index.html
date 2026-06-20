@@ -1020,16 +1020,17 @@ async function etiqGenerer(){
   const isBio=type==='bio';
   const importateur=gt('etiq_import');
   const cert=gt('etiq_cert');
-  // Générer le QR code (encode le N° de lot) en data URI
+  // QR code : on tente la librairie locale, sinon on utilise un service image en repli
   let qrDataUri='';
-  try{
-    qrDataUri=await QRCode.toDataURL(lot,{width:200,margin:1});
-  }catch(e){toast('Erreur QR: '+e.message,'err');return;}
-  // Construire les étiquettes
+  if(typeof QRCode!=='undefined' && QRCode.toDataURL){
+    try{ qrDataUri=await QRCode.toDataURL(lot,{width:200,margin:1}); }catch(e){ qrDataUri=''; }
+  }
+  // Repli : image QR via service en ligne (fonctionne sans librairie)
+  const qrSrc=qrDataUri||('https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data='+encodeURIComponent(lot));
   const dateFr=date?new Date(date).toLocaleDateString('fr-FR'):'';
   let labels='';
   for(let i=0;i<nb;i++){
-    labels+=etiqHTML({isBio,grade,variete,lot,dateFr,qrDataUri,importateur,cert});
+    labels+=etiqHTML({isBio,grade,variete,lot,dateFr,qrDataUri:qrSrc,importateur,cert});
   }
   const w=window.open('','_blank');
   w.document.write(`<html><head><title>Étiquettes ${lot} — Grade ${grade}</title><style>
@@ -1058,7 +1059,7 @@ async function etiqGenerer(){
     .etq-qr img{width:90px;height:90px}
     .etq-qr .lab{font-size:8px;color:#444}
   </style></head><body><div class="grid">${labels}</div>
-  <script>window.onload=function(){setTimeout(function(){window.print();},400);}<\/script>
+  <script>window.onload=function(){setTimeout(function(){window.print();},800);}<\/script>
   </body></html>`);
   w.document.close();
   closeEtiq();
