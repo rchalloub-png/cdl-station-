@@ -493,9 +493,10 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
   <div class="stock-item export"><div class="si-label">Grade 50 — Sacs</div><div class="si-val" id="st_g50">0</div><div class="si-sub">401–550 g</div></div>
   <div class="stock-item" style="border-color:#FD992D;background:#FFF8F0"><div class="si-label">Noix vrac</div><div class="si-val" id="st_vrac" style="color:#FD992D">0</div><div class="si-sub">noix non ensachées</div></div>
 </div>
-<div class="stock-grid" style="grid-template-columns:repeat(2,1fr);margin-top:0">
+<div class="stock-grid" style="grid-template-columns:repeat(3,1fr);margin-top:0">
   <div class="stock-item" style="border-color:var(--blue);background:#F0F4FA"><div class="si-label">Carton 8 pièces</div><div class="si-val" id="st_c8" style="color:var(--blue)">0</div><div class="si-sub">≥500 g · 8 noix/carton</div></div>
   <div class="stock-item" style="border-color:var(--blue);background:#F0F4FA"><div class="si-label">Carton 10 pièces</div><div class="si-val" id="st_c10" style="color:var(--blue)">0</div><div class="si-sub">≥400 g · 10 noix/carton</div></div>
+  <div class="stock-item" style="border-color:var(--danger);background:#FEF2F2"><div class="si-label">Noix rejetées</div><div class="si-val" id="st_rejets" style="color:var(--danger)">0</div><div class="si-sub">non conformes</div></div>
 </div>
 <div class="card" style="border-color:var(--orange);margin-bottom:14px">
   <div class="card-title" style="color:var(--orange)">&#9881; Remise à niveau du stock (inventaire physique)</div>
@@ -508,6 +509,7 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
     <div class="fg"><label>Noix vrac</label><input type="number" id="inv_vrac" min="0" placeholder="0"></div>
     <div class="fg"><label>Carton 8 pièces</label><input type="number" id="inv_c8" min="0" placeholder="0"></div>
     <div class="fg"><label>Carton 10 pièces</label><input type="number" id="inv_c10" min="0" placeholder="0"></div>
+    <div class="fg"><label>Noix rejetées</label><input type="number" id="inv_rejets" min="0" placeholder="0"></div>
   </div>
   <div class="btn-row" style="margin-top:10px">
     <button class="btn" style="border-color:var(--orange);color:var(--orange)" onclick="stockInventaire()">&#10003; Valider l'inventaire physique</button>
@@ -696,7 +698,7 @@ const db = createClient(SUPA_URL, SUPA_KEY);
 
 let currentUser = null;
 let currentProfile = null;
-let stockData = {grade30_sacs:0,grade35_sacs:0,grade40_sacs:0,grade50_sacs:0,carton8:0,carton10:0,vrac_noix:0};
+let stockData = {grade30_sacs:0,grade35_sacs:0,grade40_sacs:0,grade50_sacs:0,carton8:0,carton10:0,vrac_noix:0,rejets_noix:0};
 let brList = [];
 let plPallets = [];
 
@@ -1214,11 +1216,11 @@ function genererRpAgr(br_num,poids_moy,taux,resultat,sacs){
 async function stockInventaire(){
   if(!isAdmin()){toast('Seul l\'administrateur peut modifier l\'inventaire.','err');return;}
   if(!confirm('Confirmer la remise à niveau du stock avec les quantités saisies ?'))return;
-  const g30=gv('inv_g30'),g35=gv('inv_g35'),g40=gv('inv_g40'),g50=gv('inv_g50'),vrac=gv('inv_vrac'),c8=gv('inv_c8'),c10=gv('inv_c10');
-  await db.from('stock_pf').update({grade30_sacs:g30,grade35_sacs:g35,grade40_sacs:g40,grade50_sacs:g50,vrac_noix:vrac,carton8:c8,carton10:c10,updated_at:new Date().toISOString()}).eq('id',stockData.id);
-  await db.from('mouvements_stock').insert({type:'correction',reference:'Inventaire physique du '+new Date().toLocaleDateString('fr-FR'),grade30:g30,grade35:g35,grade40:g40,grade50:g50,carton8:c8,carton10:c10,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
-  stockData={...stockData,grade30_sacs:g30,grade35_sacs:g35,grade40_sacs:g40,grade50_sacs:g50,vrac_noix:vrac,carton8:c8,carton10:c10};
-  ['inv_g30','inv_g35','inv_g40','inv_g50','inv_vrac','inv_c8','inv_c10'].forEach(id=>document.getElementById(id).value='');
+  const g30=gv('inv_g30'),g35=gv('inv_g35'),g40=gv('inv_g40'),g50=gv('inv_g50'),vrac=gv('inv_vrac'),c8=gv('inv_c8'),c10=gv('inv_c10'),rejets=gv('inv_rejets');
+  await db.from('stock_pf').update({grade30_sacs:g30,grade35_sacs:g35,grade40_sacs:g40,grade50_sacs:g50,vrac_noix:vrac,carton8:c8,carton10:c10,rejets_noix:rejets,updated_at:new Date().toISOString()}).eq('id',stockData.id);
+  await db.from('mouvements_stock').insert({type:'correction',reference:'Inventaire physique du '+new Date().toLocaleDateString('fr-FR'),grade30:g30,grade35:g35,grade40:g40,grade50:g50,carton8:c8,carton10:c10,rejets,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
+  stockData={...stockData,grade30_sacs:g30,grade35_sacs:g35,grade40_sacs:g40,grade50_sacs:g50,vrac_noix:vrac,carton8:c8,carton10:c10,rejets_noix:rejets};
+  ['inv_g30','inv_g35','inv_g40','inv_g50','inv_vrac','inv_c8','inv_c10','inv_rejets'].forEach(id=>document.getElementById(id).value='');
   toast('Stock mis à jour !','ok');
   updateBadge();
   renderStock();
@@ -1319,6 +1321,11 @@ async function psSave(){
     statut:'attente_calibrage'
   }).select().single();
   if(error){toast('Erreur: '+error.message,'err');return;}
+  // Alimente le stock de noix rejetées (petites + germées)
+  if(rejet>0){
+    if(!stockData.id) await loadStock();
+    await updateStock(0,0,0,0,'entree_rejets','Tri '+numero,0,0,rejet);
+  }
   toast('Tri validé ! N° de traitement '+numero+' généré. → Calibreuse','ok');
   ['ps_petites','ps_germees','ps_notes','ps_oper'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ps_br_select').value='';
@@ -1580,7 +1587,7 @@ async function pValider(){
   if(error){toast('Erreur sauvegarde: '+error.message,'err');return;}
   if(trt_id) await db.from('traitements').update({statut:'calibre'}).eq('id',trt_id);
   if(br_id) await db.from('bons_reception').update({statut:'calibrage_ok'}).eq('id',br_id);
-  await updateStock(g30,g35,g40,g50,'entree_production',lot_num||br_num||'Production',c8c,c10c);
+  await updateStock(g30,g35,g40,g50,'entree_production',lot_num||br_num||'Production',c8c,c10c,rej);
   toast('Production validée ! Lot '+lot_num+' créé ('+texp+' sacs, '+(c8c+c10c)+' cartons). Stock mis à jour.','ok');
   document.getElementById('btn_valider').disabled=true;
   document.getElementById('btn_valider').textContent='✓ Validé';
@@ -1679,17 +1686,18 @@ async function loadStock(){
   updateBadge();
 }
 
-async function updateStock(g30,g35,g40,g50,type,ref,c8,c10){
-  c8=c8||0;c10=c10||0;
+async function updateStock(g30,g35,g40,g50,type,ref,c8,c10,rejets){
+  c8=c8||0;c10=c10||0;rejets=rejets||0;
   const n30=(stockData.grade30_sacs||0)+(g30||0);
   const n35=(stockData.grade35_sacs||0)+(g35||0);
   const n40=(stockData.grade40_sacs||0)+(g40||0);
   const n50=(stockData.grade50_sacs||0)+(g50||0);
   const nc8=(stockData.carton8||0)+c8;
   const nc10=(stockData.carton10||0)+c10;
-  await db.from('stock_pf').update({grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10,updated_at:new Date().toISOString()}).eq('id',stockData.id);
-  await db.from('mouvements_stock').insert({type,reference:ref,grade30:g30||0,grade35:g35||0,grade40:g40||0,grade50:g50||0,carton8:c8,carton10:c10,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
-  stockData={...stockData,grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10};
+  const nrej=(stockData.rejets_noix||0)+rejets;
+  await db.from('stock_pf').update({grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10,rejets_noix:nrej,updated_at:new Date().toISOString()}).eq('id',stockData.id);
+  await db.from('mouvements_stock').insert({type,reference:ref,grade30:g30||0,grade35:g35||0,grade40:g40||0,grade50:g50||0,carton8:c8,carton10:c10,rejets,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
+  stockData={...stockData,grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10,rejets_noix:nrej};
   updateBadge();
 }
 
@@ -1700,6 +1708,7 @@ function renderStock(){
   document.getElementById('st_g50').textContent=fmt(stockData.grade50_sacs||0);
   const c8=document.getElementById('st_c8');if(c8)c8.textContent=fmt(stockData.carton8||0);
   const c10=document.getElementById('st_c10');if(c10)c10.textContent=fmt(stockData.carton10||0);
+  const rej=document.getElementById('st_rejets');if(rej)rej.textContent=fmt(stockData.rejets_noix||0);
   document.getElementById('st_vrac').textContent=fmt(stockData.vrac_noix||0);
 }
 
@@ -1831,6 +1840,7 @@ function exportStockExcel(){
     ['Total sacs export',(stockData.grade30_sacs||0)+(stockData.grade35_sacs||0)+(stockData.grade40_sacs||0)+(stockData.grade50_sacs||0),'sacs'],
     ['Carton 8 pièces',stockData.carton8||0,'cartons'],
     ['Carton 10 pièces',stockData.carton10||0,'cartons'],
+    ['Noix rejetées (non conformes)',stockData.rejets_noix||0,'noix'],
     ['Noix vrac',stockData.vrac_noix||0,'noix'],
   ];
   const ws=XLSX.utils.aoa_to_sheet(rows);
@@ -1866,6 +1876,7 @@ function exportStockPDF(){
       <tr class="tot"><td>TOTAL SACS EXPORT</td><td>${fmt(tot)}</td><td>sacs</td></tr>
       <tr><td>Carton 8 pièces</td><td>${fmt(stockData.carton8||0)}</td><td>cartons</td></tr>
       <tr><td>Carton 10 pièces</td><td>${fmt(stockData.carton10||0)}</td><td>cartons</td></tr>
+      <tr><td>Noix rejetées (non conformes)</td><td>${fmt(stockData.rejets_noix||0)}</td><td>noix</td></tr>
       <tr><td>Noix vrac</td><td>${fmt(stockData.vrac_noix||0)}</td><td>noix</td></tr>
     </table>
     <p style="margin-top:30px;font-size:12px;color:#888">Africa Food Group — CDL Station</p>
