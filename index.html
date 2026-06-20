@@ -399,7 +399,7 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
 </div>
 <div class="card">
   <div class="card-title">Historique des pré-sélections (traitements)</div>
-  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>N° Traitement</th><th>Date</th><th>BR</th><th>Fournisseur</th><th>Entrée tri</th><th>Rejeté</th><th>Vers calibreuse</th><th>Statut</th></tr></thead><tbody id="tbody_ps"></tbody></table></div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>N° Traitement</th><th>Date</th><th>BR</th><th>Fournisseur</th><th>Entrée tri</th><th>Rejeté</th><th>Vers calibreuse</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="tbody_ps"></tbody></table></div>
 </div>
 </div>
 
@@ -639,7 +639,7 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
       </select>
     </div>
     <div class="fg"><label>Mot de passe provisoire</label><input type="password" id="adm_pass" placeholder="Min. 8 caractères"></div>
-    <div class="fg"><label>&nbsp;</label><button class="btn red" style="width:100%" onclick="admCreateUser()">Créer l'utilisateur</button></div>
+    <div class="fg"><label>&nbsp;</label><button class="btn red" id="btn_adm_create" style="width:100%" onclick="admCreateUser()">Créer l'utilisateur</button></div>
   </div>
 </div>
 <div class="card">
@@ -683,6 +683,7 @@ let plPallets = [];
 function gv(id){return parseFloat(document.getElementById(id).value)||0;}
 function gt(id){return (document.getElementById(id).value||'').trim();}
 function fmt(n){return Number(n||0).toLocaleString('fr-FR');}
+function isAdmin(){return currentProfile?.role==='admin';}
 function fmtDate(v){return v?new Date(v).toLocaleDateString('fr-FR'):'—';}
 function toast(msg,type='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(()=>t.classList.remove('show'),3000);}
 function loading(id){document.getElementById(id).innerHTML='<div class="loading"><div class="spinner"></div>Chargement...</div>';}
@@ -843,6 +844,7 @@ function brStatutBadge(s){return {
   'agreage_ko':'<span class="badge b-red">Agréage KO</span>',
   'attente_calibrage':'<span class="badge b-blue">En attente calibrage</span>',
   'calibrage_ok':'<span class="badge b-green">Calibré ✓</span>',
+  'solde':'<span class="badge b-gray">Soldé (commande)</span>',
 }[s]||'<span class="badge b-gray">'+s+'</span>';}
 
 async function loadBRList(){
@@ -865,13 +867,14 @@ async function loadBRList(){
       <td>${brStatutBadge(b.statut)}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         ${peutReception?`<button class="btn sm green" onclick="openLivraison('${b.id}')">📦 Réception</button>`:''}
-        <button class="btn sm" onclick="brDelete('${b.id}')">Suppr.</button>
+        ${isAdmin()?`<button class="btn sm" onclick="brDelete('${b.id}')">Suppr.</button>`:''}
       </td>
     </tr>`;
   }).join('');
 }
 
 async function brDelete(id){
+  if(!isAdmin()){toast('Seul l\'administrateur peut supprimer.','err');return;}
   if(!confirm('Supprimer ce BR ?'))return;
   await db.from('bons_reception').delete().eq('id',id);
   await loadBRList();
@@ -938,43 +941,27 @@ async function lv_Save(){
   if(!noix){toast('Saisis la quantité livrée.','err');return;}
 
   const total_cmd=b.total_noix||0;
-  const deja=b.noix_livrees||0;
-  const nouveau_livre=deja+noix;
-  const solde=total_cmd-nouveau_livre;
+  const solde=total_cmd-noix;
   const surplus=solde<0;
 
-  // Créer un nouveau BR pour cette réception → statut attente_agreage
-  const {error:errBR}=await db.from('bons_reception').insert({
+  // Transforme la commande SUR PLACE en bon de réception (une seule ligne, pas de double)
+  const {error}=await db.from('bons_reception').update({
     numero:br_num,
     ref_odoo:b.ref_odoo||b.numero,
     date_reception:date,
-    fournisseur_id:b.fournisseur_id||null,
-    fournisseur_nom:b.fournisseur_nom||'—',
     nb_sacs:Math.round(noix/60),
-    noix_par_sac:60,
-    total_noix:noix,
     noix_livrees:noix,
     statut:'attente_agreage',
-    operateur_id:currentUser.id,
-    operateur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
-    notes:'Réception vs commande '+(b.ref_odoo||b.numero)+(notes?' | '+notes:'')+(surplus?' | ⚠️ Surplus: '+fmt(Math.abs(solde))+' noix':'')
-  });
-  if(errBR){toast('Erreur: '+errBR.message,'err');return;}
-
-  // Mettre à jour la commande d'origine
-  // Si tout livré → on retire le bouton réception (statut != en_attente)
-  // Si partiel → reste en_attente pour permettre une nouvelle réception
-  const statut_cmd=nouveau_livre>=total_cmd?'attente_agreage':'en_attente';
-  await db.from('bons_reception').update({
-    noix_livrees:nouveau_livre,
-    statut:statut_cmd,
-    notes:(b.notes||'')+(surplus?' | ⚠️ Surplus: '+fmt(Math.abs(solde))+' noix':'')
+    notes:'Réception (cmd '+(b.ref_odoo||b.numero)+', commandé '+fmt(total_cmd)+')'+(notes?' | '+notes:'')+(surplus?' | ⚠️ Surplus: '+fmt(Math.abs(solde))+' noix':solde>0?' | Solde non livré: '+fmt(solde)+' noix':'')
   }).eq('id',currentLvId);
+  if(error){toast('Erreur: '+error.message,'err');return;}
 
   if(surplus){
-    toast('⚠️ Surplus de '+fmt(Math.abs(solde))+' noix. BR '+br_num+' créé → En attente d\'agréage.','ok');
+    toast('⚠️ Surplus de '+fmt(Math.abs(solde))+' noix. BR '+br_num+' → En attente d\'agréage.','ok');
+  } else if(solde>0){
+    toast('Réception partielle. BR '+br_num+' → En attente d\'agréage. Solde non livré: '+fmt(solde)+' noix.','ok');
   } else {
-    toast('BR '+br_num+' créé → En attente d\'agréage. '+(solde>0?'Solde restant: '+fmt(solde)+' noix.':'Commande soldée ✓'),'ok');
+    toast('BR '+br_num+' → En attente d\'agréage. Commande complète ✓','ok');
   }
   closeLivraison();
   await loadBRList();
@@ -1294,7 +1281,7 @@ async function psSave(){
   const sortie=Math.max(0,entree-rejet);
   if(sortie<=0){toast('La quantité vers calibreuse doit être positive.','err');return;}
   const numero=await genTraitementNumero();
-  const {error}=await db.from('traitements').insert({
+  const {data:inserted,error}=await db.from('traitements').insert({
     numero,
     br_id,
     br_numero:opt.getAttribute('data-num'),
@@ -1308,33 +1295,103 @@ async function psSave(){
     taux_tri:entree>0?parseFloat(((rejet/entree)*100).toFixed(2)):0,
     notes:gt('ps_notes'),
     statut:'attente_calibrage'
-  });
+  }).select().single();
   if(error){toast('Erreur: '+error.message,'err');return;}
   toast('Tri validé ! N° de traitement '+numero+' généré. → Calibreuse','ok');
   ['ps_petites','ps_germees','ps_notes','ps_oper'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ps_br_select').value='';
   document.getElementById('ps_br_info').style.display='none';
   document.getElementById('ps_form').style.display='none';
-  loadPsBRSelect();
-  loadPsHisto();
+  await loadPsBRSelect();
+  await loadPsHisto();
   loadProdTRTSelect();
+  // Ouvre le rapport automatiquement
+  if(inserted&&inserted.id){window._psData=window._psData||{};window._psData[inserted.id]=inserted;psRapport(inserted.id);}
 }
 
 async function loadPsHisto(){
   const {data}=await db.from('traitements').select('*').order('created_at',{ascending:false}).limit(50);
   const tbody=document.getElementById('tbody_ps');
   if(!tbody)return;
+  window._psData={};
   const stMap={attente_calibrage:'<span class="badge b-blue">En attente calibrage</span>',calibre:'<span class="badge b-green">Calibré ✓</span>'};
-  tbody.innerHTML=(data||[]).map(t=>`<tr>
+  tbody.innerHTML=(data||[]).map(t=>{
+    window._psData[t.id]=t;
+    return `<tr>
     <td><b>${t.numero}</b></td>
     <td>${fmtDate(t.date_preselection)}</td>
     <td>${t.br_numero||'—'}</td>
     <td>${t.fournisseur_nom||'—'}</td>
     <td>${fmt(t.noix_entree||0)}</td>
-    <td style="color:var(--orange)">${fmt((t.noix_petites||0)+(t.noix_germees||0))}</td>
+    <td style="color:var(--orange)">${fmt((t.noix_petites||0)+(t.noix_germees||0))} (${t.taux_tri||0}%)</td>
     <td style="color:var(--green);font-weight:600">${fmt(t.noix_sortie||0)}</td>
     <td>${stMap[t.statut]||t.statut}</td>
-  </tr>`).join('');
+    <td><button class="btn sm" onclick="psRapport('${t.id}')">&#128196; Rapport</button></td>
+  </tr>`;}).join('');
+}
+
+function psRapport(id){
+  const t=(window._psData||{})[id];
+  if(!t)return;
+  const rejet=(t.noix_petites||0)+(t.noix_germees||0);
+  const tauxSortie=t.noix_entree>0?Math.round((t.noix_sortie/t.noix_entree)*100):0;
+  const w=window.open('','_blank');
+  w.document.write(`<html><head><title>${t.numero} — Pré-sélection</title><style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a1a;max-width:760px;margin:auto}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #e03a6e;padding-bottom:12px;margin-bottom:18px}
+    .logo{background:#1F3864;color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px}
+    .logo small{display:block;font-weight:400;font-size:10px;opacity:.85}
+    h1{color:#1F3864;font-size:18px;margin:0}
+    .sub{color:#888;font-size:12px;text-align:right}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:20px}
+    .meta div{display:flex;gap:8px}
+    .meta .l{color:#888;min-width:120px}
+    table{width:100%;border-collapse:collapse;margin-bottom:18px}
+    th{background:#1F3864;color:#fff;padding:8px 12px;text-align:left;font-size:13px}
+    td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px}
+    .tot td{background:#f0f4fa;font-weight:700}
+    .bilan{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+    .bl{border:1px solid #e5e5e5;border-radius:8px;padding:12px;text-align:center}
+    .bl .l{font-size:11px;color:#888}
+    .bl .v{font-size:22px;font-weight:700;color:#1F3864;margin-top:4px}
+    .bl.rej .v{color:#e8820c}
+    .bl.ok .v{color:#3b9e6e}
+    .sign{display:flex;gap:40px;margin-top:40px}
+    .sign div{flex:1}
+    .sign .lbl{font-size:11px;color:#888;margin-bottom:30px}
+    .sign .line{border-top:1px solid #999;padding-top:4px;font-size:11px;color:#888}
+  </style></head><body>
+    <div class="hdr">
+      <div class="logo">Africa Food<small>Cocoteraie Des Lagunes</small></div>
+      <div><h1>RAPPORT DE PRÉ-SÉLECTION / TRI</h1><div class="sub">Avant calibrage<br>N° ${t.numero}</div></div>
+    </div>
+    <div class="meta">
+      <div><span class="l">N° Traitement</span><b>${t.numero}</b></div>
+      <div><span class="l">Date</span>${fmtDate(t.date_preselection)}</div>
+      <div><span class="l">Bon de réception</span>${t.br_numero||'—'}</div>
+      <div><span class="l">Fournisseur</span>${t.fournisseur_nom||'—'}</div>
+      <div><span class="l">Opérateur tri</span>${t.operateur_tri||'—'}</div>
+      <div><span class="l">Statut</span>${t.statut==='calibre'?'Calibré':'En attente calibrage'}</div>
+    </div>
+    <table>
+      <tr><th>Élément</th><th style="text-align:right">Noix</th><th style="text-align:right">%</th></tr>
+      <tr><td>Noix entrées au tri</td><td style="text-align:right"><b>${fmt(t.noix_entree||0)}</b></td><td style="text-align:right">100%</td></tr>
+      <tr><td>Petites noix retirées</td><td style="text-align:right;color:#e8820c">${fmt(t.noix_petites||0)}</td><td style="text-align:right">${t.noix_entree>0?Math.round((t.noix_petites/t.noix_entree)*100):0}%</td></tr>
+      <tr><td>Noix germées retirées</td><td style="text-align:right;color:#e8820c">${fmt(t.noix_germees||0)}</td><td style="text-align:right">${t.noix_entree>0?Math.round((t.noix_germees/t.noix_entree)*100):0}%</td></tr>
+      <tr class="tot"><td>Total rejeté</td><td style="text-align:right;color:#e8820c">${fmt(rejet)}</td><td style="text-align:right">${t.taux_tri||0}%</td></tr>
+      <tr class="tot"><td>Noix vers calibreuse</td><td style="text-align:right;color:#3b9e6e">${fmt(t.noix_sortie||0)}</td><td style="text-align:right">${tauxSortie}%</td></tr>
+    </table>
+    <div class="bilan">
+      <div class="bl"><div class="l">Entrée tri</div><div class="v">${fmt(t.noix_entree||0)}</div></div>
+      <div class="bl rej"><div class="l">Taux de rejet</div><div class="v">${t.taux_tri||0}%</div></div>
+      <div class="bl ok"><div class="l">Rendement tri</div><div class="v">${tauxSortie}%</div></div>
+    </div>
+    ${t.notes?'<p style="font-size:12px;color:#666;margin-top:16px"><b>Observations :</b> '+t.notes+'</p>':''}
+    <div class="sign"><div><div class="lbl">Signature opérateur</div><div class="line">${t.operateur_tri||'Nom & signature'}</div></div><div><div class="lbl">Visa responsable</div><div class="line">Nom & signature</div></div></div>
+    <p style="margin-top:30px;font-size:11px;color:#aaa;text-align:center">Africa Food Group — CDL Station — ${new Date().toLocaleDateString('fr-FR')}</p>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),350);
 }
 
 // ---- PRODUCTION (par N° de traitement) ----
@@ -1907,25 +1964,46 @@ async function admCreateUser(){
   const email=gt('adm_email'),pass=gt('adm_pass'),prenom=gt('adm_prenom'),nom=gt('adm_nom'),role=gt('adm_role');
   if(!email||!pass||!prenom||!nom){toast('Remplis tous les champs.','err');return;}
   if(pass.length<8){toast('Mot de passe minimum 8 caractères.','err');return;}
-  const {data,error}=await db.auth.admin.createUser({email,password:pass,email_confirm:true});
-  if(error){toast('Erreur création auth: '+error.message,'err');return;}
-  const {error:e2}=await db.from('profiles').insert({id:data.user.id,prenom,nom,role});
-  if(e2){toast('Erreur profil: '+e2.message,'err');return;}
-  toast('Utilisateur créé : '+prenom+' '+nom,'ok');
-  ['adm_prenom','adm_nom','adm_email','adm_pass'].forEach(id=>document.getElementById(id).value='');
-  loadAdminUsers();
+  const btn=document.getElementById('btn_adm_create');
+  if(btn){btn.disabled=true;btn.textContent='Création...';}
+  try{
+    const res=await fetch(SUPA_URL+'/functions/v1/create-user',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+      body:JSON.stringify({email,password:pass,prenom,nom,role})
+    });
+    const result=await res.json();
+    if(!res.ok||result.error){toast('Erreur : '+(result.error||'création impossible'),'err');return;}
+    toast('Utilisateur créé : '+prenom+' '+nom,'ok');
+    ['adm_prenom','adm_nom','adm_email','adm_pass'].forEach(id=>document.getElementById(id).value='');
+    loadAdminUsers();
+  }catch(e){
+    toast('Erreur réseau : '+e.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='+ Créer l\'utilisateur';}
+  }
 }
 
 async function admDeleteUser(id){
-  if(!confirm('Supprimer cet utilisateur ?'))return;
-  await db.from('profiles').delete().eq('id',id);
-  toast('Utilisateur supprimé');
-  loadAdminUsers();
+  if(!confirm('Supprimer cet utilisateur ? (compte + profil)'))return;
+  try{
+    const res=await fetch(SUPA_URL+'/functions/v1/create-user',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+      body:JSON.stringify({action:'delete',userId:id})
+    });
+    const result=await res.json();
+    if(!res.ok||result.error){toast('Erreur : '+(result.error||'suppression impossible'),'err');return;}
+    toast('Utilisateur supprimé');
+    loadAdminUsers();
+  }catch(e){
+    toast('Erreur réseau : '+e.message,'err');
+  }
 }
 
 async function loadAdminFourn(){
   const {data}=await db.from('fournisseurs').select('*').eq('actif',true).order('nom');
-  document.getElementById('adm_fourn_list').innerHTML=(data||[]).map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0ec"><span>${f.nom}</span><button class="btn sm" onclick="admDelFourn('${f.id}')">Suppr.</button></div>`).join('');
+  document.getElementById('adm_fourn_list').innerHTML=(data||[]).map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0ec"><span>${f.nom}</span>${isAdmin()?`<button class="btn sm" onclick="admDelFourn('${f.id}')">Suppr.</button>`:''}</div>`).join('');
 }
 
 async function admAddFourn(){
@@ -1938,6 +2016,7 @@ async function admAddFourn(){
 }
 
 async function admDelFourn(id){
+  if(!isAdmin()){toast('Seul l\'administrateur peut supprimer.','err');return;}
   await db.from('fournisseurs').update({actif:false}).eq('id',id);
   await loadFournisseurs();
   loadAdminFourn();
