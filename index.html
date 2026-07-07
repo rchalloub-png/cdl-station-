@@ -566,6 +566,32 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
     <button class="btn red" onclick="stockSortie()">Sortir du stock</button>
   </div>
 </div>
+<div class="card" style="border-color:var(--danger)">
+  <div class="card-title" style="color:var(--danger)">&#9851; Évacuation des noix rejetées (revendeurs / autre)</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Sortir les noix non conformes du stock vers un revendeur, un don ou destruction. Une trace est conservée.</p>
+  <div class="g4">
+    <div class="fg"><label>Destination</label>
+      <select id="rej_dest">
+        <option value="Revendeur">Revendeur</option>
+        <option value="Marché local">Marché local</option>
+        <option value="Don">Don</option>
+        <option value="Destruction">Destruction</option>
+        <option value="Autre">Autre</option>
+      </select>
+    </div>
+    <div class="fg"><label>Bénéficiaire / Nom</label><input id="rej_benef" placeholder="ex: Konaté négoce"></div>
+    <div class="fg"><label>Quantité (noix)</label><input type="number" id="rej_qte" min="0" placeholder="0" oninput="rejCalc()"></div>
+    <div class="fg"><label>Prix unitaire FCFA (optionnel)</label><input type="number" id="rej_pu" min="0" placeholder="0" oninput="rejCalc()"></div>
+  </div>
+  <div class="cond-total" style="margin-top:10px">
+    <div><div style="font-size:13px;font-weight:600">Montant total</div><div style="font-size:11px;color:var(--muted)">Quantité × prix unitaire</div></div>
+    <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--danger)" id="rej_montant">0 FCFA</div></div>
+  </div>
+  <div class="btn-row" style="margin-top:10px">
+    <button class="btn red" onclick="stockEvacuerRejets()">&#9851; Évacuer les rejets</button>
+    <button class="btn" onclick="rejHisto()">&#128196; Historique évacuations</button>
+  </div>
+</div>
 </div>
 
 <!-- PAGE PALETTES -->
@@ -2254,9 +2280,65 @@ async function stockSortie(){
   renderStock();
 }
 
+function rejCalc(){
+  const qte=gv('rej_qte'),pu=gv('rej_pu');
+  document.getElementById('rej_montant').textContent=fmt(Math.round(qte*pu))+' FCFA';
+}
+
+async function stockEvacuerRejets(){
+  const qte=gv('rej_qte');
+  if(qte<=0){toast('Saisir une quantité.','err');return;}
+  if(qte>(stockData.rejets_noix||0)){toast('Stock rejets insuffisant ! Disponible : '+fmt(stockData.rejets_noix||0)+' noix.','err');return;}
+  const dest=gt('rej_dest'),benef=gt('rej_benef'),pu=gv('rej_pu');
+  const montant=Math.round(qte*pu);
+  const ref=dest+(benef?' — '+benef:'')+(montant>0?' ('+fmt(montant)+' FCFA)':'');
+  // Débit du stock rejets (rejets négatif)
+  await updateStock(0,0,0,0,'sortie_rejets',ref,0,0,-qte);
+  // Trace détaillée dans mouvements_stock déjà faite par updateStock ; on enrichit avec destination/montant
+  await db.from('mouvements_stock').insert({
+    type:'evacuation_rejets',reference:ref,rejets:-qte,
+    destination:dest,beneficiaire:benef||null,montant_fcfa:montant||0,
+    user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')
+  });
+  ['rej_qte','rej_pu','rej_benef'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('rej_montant').textContent='0 FCFA';
+  toast('Rejets évacués : '+fmt(qte)+' noix vers '+dest+'.','ok');
+  renderStock();
+}
+
+async function rejHisto(){
+  const {data}=await db.from('mouvements_stock').select('*').eq('type','evacuation_rejets').order('created_at',{ascending:false}).limit(100);
+  const rows=(data||[]).map(m=>{
+    const d=new Date(m.created_at).toLocaleDateString('fr-FR');
+    return `<tr><td>${d}</td><td>${m.destination||'—'}</td><td>${m.beneficiaire||'—'}</td><td style="text-align:right">${fmt(Math.abs(m.rejets||0))}</td><td style="text-align:right">${fmt(m.montant_fcfa||0)} FCFA</td><td>${m.user_nom||'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune évacuation</td></tr>';
+  const totQte=(data||[]).reduce((a,b)=>a+Math.abs(b.rejets||0),0);
+  const totMt=(data||[]).reduce((a,b)=>a+(b.montant_fcfa||0),0);
+  const w=window.open('','_blank');
+  const logo=document.querySelector('.nav-logo img')?.src||'';
+  w.document.write(`<html><head><title>Historique évacuations rejets</title><style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#111}
+    .hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #FC670D;padding-bottom:10px;margin-bottom:16px}
+    .hd img{height:44px}h1{font-size:18px;margin:0;color:#182A68}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th{background:#182A68;color:#fff;padding:8px;font-size:12px;text-align:left}
+    td{padding:7px 8px;border-bottom:1px solid #eee;font-size:12px}
+    .tot td{background:#f0f4fa;font-weight:700}
+  </style></head><body>
+    <div class="hd"><img src="${logo}"><div><h1>Historique des évacuations de rejets</h1><div style="font-size:12px;color:#888">Africa Food — CDL — ${new Date().toLocaleDateString('fr-FR')}</div></div></div>
+    <table><thead><tr><th>Date</th><th>Destination</th><th>Bénéficiaire</th><th style="text-align:right">Noix</th><th style="text-align:right">Montant</th><th>Par</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="tot"><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(totQte)}</td><td style="text-align:right">${fmt(totMt)} FCFA</td><td></td></tr></tfoot>
+    </table>
+  </body></html>`);
+  w.document.close();
+}
+
 function updateBadge(){
   const t=Math.round((stockData.grade30_sacs||0)+(stockData.grade35_sacs||0)+(stockData.grade40_sacs||0)+(stockData.grade50_sacs||0));
-  document.getElementById('badge_stock').textContent=t>999?'999+':t;
+  const badge=document.getElementById('badge_stock');
+  if(badge)badge.textContent=t>999?'999+':t;
+  renderStock();
 }
 
 // ---- PACKING LIST ----
