@@ -374,12 +374,24 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
   <div id="agr_br_info" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:7px;font-size:13px"></div>
 </div>
 <div class="card" id="agr_form_card" style="display:none">
-  <div class="card-title">Contrôle — 25 sacs échantillon</div>
-  <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Pour chaque sac : poids réel (kg), nombre de noix germées, pourries, sous-poids</p>
-  <div class="agr-grid" id="agr_sacs_grid"></div>
+  <div class="card-title">3. Aspect visuel — Qualité des noix</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Prélèvement : 20 sacs Cal A + 20 sacs Cal B. Saisir le nombre de noix constaté pour chaque défaut.</p>
+  <div class="g2" style="margin-bottom:12px">
+    <div class="fg"><label>Prélèvement Cal A (noix)</label><input type="number" id="agr_nA" min="0" value="800" oninput="agrCalc()"></div>
+    <div class="fg"><label>Prélèvement Cal B (noix)</label><input type="number" id="agr_nB" min="0" value="1000" oninput="agrCalc()"></div>
+  </div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr>
+    <th>DÉFAUT</th>
+    <th style="text-align:right">Cal A — <span id="agr_hA">800</span> noix</th>
+    <th style="text-align:right">Cal B — <span id="agr_hB">1 000</span> noix</th>
+    <th style="text-align:right">TOTAL / <span id="agr_hT">1 800</span></th>
+    <th style="text-align:right">%</th>
+    <th style="text-align:right">SEUIL</th>
+  </tr></thead><tbody id="agr_def_tbody"></tbody></table></div>
+  <p style="font-size:11px;color:var(--orange);margin-top:8px">&#9888; Seuil de conformité : taux de défauts ≤ 5% sur l'ensemble du prélèvement (<span id="agr_hT2">1 800</span> noix). Au-delà, le lot doit être traité avec vigilance renforcée par les sélectionneurs avant expédition.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
     <div class="g4">
-      <div class="metric"><div class="lbl">Poids moyen / sac</div><div class="val" id="agr_poids_moy">—</div><div class="sub">kg</div></div>
+      <div class="metric"><div class="lbl">Prélèvement</div><div class="val" id="agr_prelev">1 800</div><div class="sub">noix</div></div>
       <div class="metric"><div class="lbl">Total défauts</div><div class="val" id="agr_total_def">—</div><div class="sub">noix</div></div>
       <div class="metric warn"><div class="lbl">Taux défauts</div><div class="val" id="agr_taux_def">—</div><div class="rbar"><div class="rfill orange" id="agr_rbar" style="width:0%"></div></div></div>
       <div class="metric" id="agr_resultat_metric"><div class="lbl">Résultat</div><div class="val" id="agr_resultat">—</div></div>
@@ -401,7 +413,7 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
 </div>
 <div class="card" style="margin-top:4px">
   <div class="card-title">Historique agréages</div>
-  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>BR</th><th>Fournisseur</th><th>Poids moy.</th><th>Taux défauts</th><th>Résultat</th><th>Contrôleur</th><th>Actions</th></tr></thead><tbody id="tbody_agr"></tbody></table></div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>BR</th><th>Fournisseur</th><th>Prélèvement</th><th>Taux défauts</th><th>Résultat</th><th>Contrôleur</th><th>Actions</th></tr></thead><tbody id="tbody_agr"></tbody></table></div>
 </div>
 
 <!-- PRE-SELECTION / TRI -->
@@ -560,6 +572,7 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
     <div class="fg"><label>Grade 50 — sacs</label><input type="number" id="out_g50" min="0" placeholder="0"></div>
     <div class="fg"><label>Carton 8 pièces</label><input type="number" id="out_c8" min="0" placeholder="0"></div>
     <div class="fg"><label>Carton 10 pièces</label><input type="number" id="out_c10" min="0" placeholder="0"></div>
+    <div class="fg"><label>Noix rejetées</label><input type="number" id="out_rejets" min="0" placeholder="0"></div>
     <div class="fg"><label>Motif</label><input id="out_motif" placeholder="ex: retour, casse..."></div>
   </div>
   <div class="btn-row" style="margin-top:10px">
@@ -1623,44 +1636,61 @@ function agrLoadBR(){
   buildAgrGrid();
 }
 
+const AGR_DEFAUTS=[
+  {code:'germees',label:'GERMÉES'},
+  {code:'cassees',label:'CASSÉES'},
+  {code:'pourries',label:'POURRIES'},
+  {code:'fraiches',label:'FRAÎCHES'},
+  {code:'tachetees',label:'TACHETÉES'}
+];
+
 function buildAgrGrid(){
-  const grid=document.getElementById('agr_sacs_grid');
-  let html='';
-  for(let i=1;i<=25;i++){
-    html+=`<div class="agr-sac">
-      <div class="sn">Sac ${i}</div>
-      <div class="slbl">Poids (kg)</div>
-      <input type="number" step="0.1" min="0" max="30" placeholder="21.5" id="agr_p${i}" oninput="agrCalc()">
-      <div class="slbl">Germées</div>
-      <input type="number" min="0" placeholder="0" id="agr_g${i}" oninput="agrCalc()">
-      <div class="slbl">Pourries</div>
-      <input type="number" min="0" placeholder="0" id="agr_po${i}" oninput="agrCalc()">
-      <div class="slbl">S/poids</div>
-      <input type="number" min="0" placeholder="0" id="agr_s${i}" oninput="agrCalc()">
-    </div>`;
-  }
-  grid.innerHTML=html;
+  const tb=document.getElementById('agr_def_tbody');
+  if(!tb)return;
+  tb.innerHTML=AGR_DEFAUTS.map(d=>`<tr>
+    <td><b>${d.label}</b></td>
+    <td><input type="number" min="0" placeholder="0" id="agr_a_${d.code}" oninput="agrCalc()" style="width:100%;text-align:right"></td>
+    <td><input type="number" min="0" placeholder="0" id="agr_b_${d.code}" oninput="agrCalc()" style="width:100%;text-align:right"></td>
+    <td style="text-align:right;font-weight:600" id="agr_t_${d.code}">0</td>
+    <td style="text-align:right" id="agr_pc_${d.code}">—</td>
+    <td style="text-align:right;color:var(--muted)">—</td>
+  </tr>`).join('')
+  +`<tr style="background:#FDF0E6;font-weight:700">
+    <td>TOTAL DÉFAUTS</td>
+    <td style="text-align:right" id="agr_ta">0</td>
+    <td style="text-align:right" id="agr_tb">0</td>
+    <td style="text-align:right" id="agr_tt">0</td>
+    <td style="text-align:right" id="agr_tp">—</td>
+    <td style="text-align:right">≤ 5%</td>
+  </tr>`;
+  agrCalc();
 }
 
 function agrCalc(){
-  let total_poids=0,n_poids=0,total_def=0,total_noix_estim=0;
-  for(let i=1;i<=25;i++){
-    const p=gv('agr_p'+i),g=gv('agr_g'+i),po=gv('agr_po'+i),s=gv('agr_s'+i);
-    if(p>0){total_poids+=p;n_poids++;}
-    total_def+=g+po+s;
-    const noix_sac=Math.round(p>0?p*1000/425:40);
-    total_noix_estim+=noix_sac;
-  }
-  const poids_moy=n_poids>0?(total_poids/n_poids).toFixed(2):0;
-  const taux=total_noix_estim>0?Math.round((total_def/total_noix_estim)*100):0;
-  document.getElementById('agr_poids_moy').textContent=poids_moy||'—';
-  document.getElementById('agr_total_def').textContent=total_def||'—';
-  document.getElementById('agr_taux_def').textContent=taux>0?taux+'%':'—';
-  document.getElementById('agr_rbar').style.width=Math.min(taux,100)+'%';
+  const nA=gv('agr_nA'),nB=gv('agr_nB'),nT=nA+nB;
+  ['agr_hA','agr_hB','agr_hT','agr_hT2','agr_prelev'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    if(el)el.textContent=fmt(i===0?nA:(i===1?nB:nT));
+  });
+  let ta=0,tb=0;
+  AGR_DEFAUTS.forEach(d=>{
+    const a=gv('agr_a_'+d.code),b=gv('agr_b_'+d.code),t=a+b;
+    ta+=a;tb+=b;
+    const et=document.getElementById('agr_t_'+d.code);if(et)et.textContent=fmt(t);
+    const ep=document.getElementById('agr_pc_'+d.code);if(ep)ep.textContent=(nT>0&&t>0)?((t/nT)*100).toFixed(2)+'%':'—';
+  });
+  const tt=ta+tb;
+  const taux=nT>0?parseFloat(((tt/nT)*100).toFixed(2)):0;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('agr_ta',fmt(ta));set('agr_tb',fmt(tb));set('agr_tt',fmt(tt));
+  set('agr_tp',tt>0?taux+'%':'—');
+  set('agr_total_def',tt>0?fmt(tt):'—');
+  set('agr_taux_def',tt>0?taux+'%':'—');
+  const bar=document.getElementById('agr_rbar');if(bar)bar.style.width=Math.min(taux,100)+'%';
   const conforme=taux<=5;
   const rm=document.getElementById('agr_resultat_metric');
-  document.getElementById('agr_resultat').textContent=total_noix_estim>0?(conforme?'CONFORME':'NON CONFORME'):'—';
-  rm.className='metric '+(conforme?'ok':'warn');
+  set('agr_resultat',tt>0?(conforme?'CONFORME':'NON CONFORME'):'—');
+  if(rm)rm.className='metric '+(conforme?'ok':'warn');
 }
 
 async function agrSave(){
@@ -1668,25 +1698,25 @@ async function agrSave(){
   const br_id=br_sel.value;
   if(!br_id){toast('Sélectionne un BR.','err');return;}
   const br_num=br_sel.options[br_sel.selectedIndex]?.getAttribute('data-num')||'';
-  const sacs=[];
-  let total_poids=0,n_poids=0,total_def=0,total_noix=0;
-  for(let i=1;i<=25;i++){
-    const p=gv('agr_p'+i),g=gv('agr_g'+i),po=gv('agr_po'+i),s=gv('agr_s'+i);
-    sacs.push({num:i,poids_kg:p||null,germees:g,pourries:po,sous_poids:s});
-    if(p>0){total_poids+=p;n_poids++;}
-    total_def+=g+po+s;
-    total_noix+=Math.round(p>0?p*1000/425:40);
-  }
-  const poids_moy=n_poids>0?parseFloat((total_poids/n_poids).toFixed(2)):null;
-  const taux=total_noix>0?parseFloat(((total_def/total_noix)*100).toFixed(2)):0;
+  const nA=gv('agr_nA'),nB=gv('agr_nB'),nT=nA+nB;
+  if(nT<=0){toast('Saisis le prélèvement (Cal A / Cal B).','err');return;}
+  const defauts=AGR_DEFAUTS.map(d=>{
+    const a=gv('agr_a_'+d.code),b=gv('agr_b_'+d.code);
+    return {code:d.code,label:d.label,cal_a:a,cal_b:b,total:a+b,pct:parseFloat((((a+b)/nT)*100).toFixed(2))};
+  });
+  const total_def=defauts.reduce((s,d)=>s+d.total,0);
+  const taux=parseFloat(((total_def/nT)*100).toFixed(2));
   const resultat=taux<=5?'conforme':'non_conforme';
+  const detail={prelevement:{cal_a:nA,cal_b:nB,total:nT},defauts,total_defauts:total_def};
+  const dateStr=gt('agr_date')||new Date().toISOString().split('T')[0];
+  const ctrl=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
   const {error}=await db.from('agreages').insert({
     br_id,br_numero:br_num,
-    date_agreage:gt('agr_date')||new Date().toISOString().split('T')[0],
+    date_agreage:dateStr,
     controleur_id:currentUser.id,
-    controleur_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||''),
-    sacs:JSON.stringify(sacs),total_sacs:25,
-    poids_moyen:poids_moy,taux_defauts:taux,resultat,notes:gt('agr_notes')
+    controleur_nom:ctrl,
+    sacs:JSON.stringify(detail),total_sacs:nT,
+    poids_moyen:null,taux_defauts:taux,resultat,notes:gt('agr_notes')
   });
   if(error){toast('Erreur: '+error.message,'err');return;}
   // L'agréage non conforme NE bloque PAS le flux : le BR continue en pré-sélection/calibrage.
@@ -1696,10 +1726,10 @@ async function agrSave(){
   }
   if(resultat!=='conforme'){
     // Alerte interne : proposer de prévenir le fournisseur
-    alerteFournisseurNonConforme(br_num,p,taux);
+    alerteFournisseurNonConforme(br_num,null,taux);
   }
   toast('Agréage enregistré — Résultat : '+resultat.toUpperCase()+(resultat!=='conforme'?' (alerte fournisseur)':''),resultat==='conforme'?'ok':'err');
-  genererRpAgr(br_num,poids_moy,taux_def_val=taux,resultat,sacs);
+  genererRpAgr(br_num,taux,resultat,detail,dateStr,ctrl);
   await loadBRList();
   await loadAgrHisto();
   await loadAgrBRSelect();
@@ -1746,18 +1776,26 @@ function alerteEmail(){
   window.open('mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(msg),'_blank');
 }
 
-function genererRpAgr(br_num,poids_moy,taux,resultat,sacs){
-  document.getElementById('rp_agr_date').textContent='Date : '+fmtDate(gt('agr_date'));
-  document.getElementById('rp_agr_ctrl').textContent=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
+function genererRpAgr(br_num,taux,resultat,detail,dateStr,ctrl){
+  document.getElementById('rp_agr_date').textContent='Date : '+fmtDate(dateStr);
+  document.getElementById('rp_agr_ctrl').textContent=ctrl||'';
+  const prel=detail?.prelevement||{cal_a:0,cal_b:0,total:0};
+  const defs=detail?.defauts||[];
+  const tt=detail?.total_defauts!==undefined?detail.total_defauts:defs.reduce((s,d)=>s+(d.total||0),0);
+  const sa=defs.reduce((s,d)=>s+(d.cal_a||0),0),sb=defs.reduce((s,d)=>s+(d.cal_b||0),0);
   let html=`<div class="rp-sec"><div class="rp-sec-title">Bon de réception : ${br_num}</div>`;
   html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">`;
-  html+=`<div class="rp-bl"><div class="l">Poids moyen/sac</div><div class="v">${poids_moy||'—'} kg</div></div>`;
+  html+=`<div class="rp-bl"><div class="l">Prélèvement</div><div class="v">${fmt(prel.total)} noix</div></div>`;
   html+=`<div class="rp-bl warn"><div class="l">Taux défauts</div><div class="v">${taux}%</div></div>`;
   html+=`<div class="rp-bl ${resultat==='conforme'?'ok':'warn'}"><div class="l">Résultat</div><div class="v">${resultat==='conforme'?'CONFORME':'NON CONFORME'}</div></div>`;
   html+=`</div>`;
-  html+=`<table class="rp-table"><thead><tr><th>Sac</th><th style="text-align:right">Poids (kg)</th><th style="text-align:right">Germées</th><th style="text-align:right">Pourries</th><th style="text-align:right">S/poids</th></tr></thead><tbody>`;
-  sacs.forEach(s=>{html+=`<tr><td>Sac ${s.num}</td><td style="text-align:right">${s.poids_kg||'—'}</td><td style="text-align:right">${s.germees||0}</td><td style="text-align:right">${s.pourries||0}</td><td style="text-align:right">${s.sous_poids||0}</td></tr>`;});
-  html+=`</tbody></table></div>`;
+  html+=`<div class="rp-sec-title">3. Aspect visuel — Qualité des noix</div>`;
+  html+=`<table class="rp-table"><thead><tr><th>DÉFAUT</th><th style="text-align:right">Cal A — ${fmt(prel.cal_a)} noix</th><th style="text-align:right">Cal B — ${fmt(prel.cal_b)} noix</th><th style="text-align:right">TOTAL / ${fmt(prel.total)}</th><th style="text-align:right">%</th><th style="text-align:right">SEUIL</th></tr></thead><tbody>`;
+  defs.forEach(d=>{html+=`<tr><td><b>${d.label}</b></td><td style="text-align:right">${fmt(d.cal_a||0)}</td><td style="text-align:right">${fmt(d.cal_b||0)}</td><td style="text-align:right">${fmt(d.total||0)}</td><td style="text-align:right">${d.pct||0}%</td><td style="text-align:right">—</td></tr>`;});
+  html+=`<tr class="tr-tot"><td><b>TOTAL DÉFAUTS</b></td><td style="text-align:right"><b>${fmt(sa)}</b></td><td style="text-align:right"><b>${fmt(sb)}</b></td><td style="text-align:right"><b>${fmt(tt)}</b></td><td style="text-align:right"><b>${taux}%</b></td><td style="text-align:right"><b>≤ 5%</b></td></tr>`;
+  html+=`</tbody></table>`;
+  html+=`<p style="font-size:10px;color:#888;margin-top:8px">&#9888; Seuil de conformité : taux de défauts ≤ 5% sur l'ensemble du prélèvement (${fmt(prel.total)} noix). Au-delà, le lot doit être traité avec vigilance renforcée par les sélectionneurs avant expédition.</p>`;
+  html+=`</div>`;
   document.getElementById('rp_agr_content').innerHTML=html;
   document.getElementById('rp_agr').classList.add('show');
 }
@@ -1778,8 +1816,20 @@ async function stockInventaire(){
 async function agrRegenerer(id){
   const {data}=await db.from('agreages').select('*').eq('id',id).single();
   if(!data)return;
-  const sacs=typeof data.sacs==='string'?JSON.parse(data.sacs):data.sacs;
-  genererRpAgr(data.br_numero,data.poids_moyen,data.taux_defauts,data.resultat,sacs);
+  let detail={};
+  try{detail=typeof data.sacs==='string'?JSON.parse(data.sacs||'{}'):(data.sacs||{});}catch(e){detail={};}
+  // Ancien format (tableau de 25 sacs) : conversion pour affichage
+  if(Array.isArray(detail)){
+    const g=detail.reduce((s,x)=>s+(x.germees||0),0);
+    const po=detail.reduce((s,x)=>s+(x.pourries||0),0);
+    const sp=detail.reduce((s,x)=>s+(x.sous_poids||0),0);
+    detail={prelevement:{cal_a:0,cal_b:0,total:data.total_sacs||0},total_defauts:g+po+sp,defauts:[
+      {code:'germees',label:'GERMÉES',cal_a:g,cal_b:0,total:g,pct:0},
+      {code:'pourries',label:'POURRIES',cal_a:po,cal_b:0,total:po,pct:0},
+      {code:'sous_poids',label:'SOUS-POIDS',cal_a:sp,cal_b:0,total:sp,pct:0}
+    ]};
+  }
+  genererRpAgr(data.br_numero,data.taux_defauts,data.resultat,detail,data.date_agreage,data.controleur_nom);
   document.getElementById('rp_agr').scrollIntoView({behavior:'smooth'});
 }
 
@@ -1789,7 +1839,7 @@ async function loadAgrHisto(){
     <td>${fmtDate(a.date_agreage)}</td>
     <td><b>${a.br_numero||'—'}</b></td>
     <td>—</td>
-    <td>${a.poids_moyen||'—'} kg</td>
+    <td>${fmt(a.total_sacs||0)} noix</td>
     <td>${a.taux_defauts||0}%</td>
     <td><span class="badge ${a.resultat==='conforme'?'b-green':'b-red'}">${a.resultat==='conforme'?'Conforme':'Non conforme'}</span></td>
     <td>${a.controleur_nom||'—'}</td>
@@ -2270,12 +2320,12 @@ function renderStock(){
 }
 
 async function stockSortie(){
-  const g30=gv('out_g30'),g35=gv('out_g35'),g40=gv('out_g40'),g50=gv('out_g50'),c8=gv('out_c8'),c10=gv('out_c10');
-  if(g30>(stockData.grade30_sacs||0)||g35>(stockData.grade35_sacs||0)||g40>(stockData.grade40_sacs||0)||g50>(stockData.grade50_sacs||0)||c8>(stockData.carton8||0)||c10>(stockData.carton10||0)){toast('Stock insuffisant !','err');return;}
-  if(g30===0&&g35===0&&g40===0&&g50===0&&c8===0&&c10===0){toast('Saisir une quantité.','err');return;}
+  const g30=gv('out_g30'),g35=gv('out_g35'),g40=gv('out_g40'),g50=gv('out_g50'),c8=gv('out_c8'),c10=gv('out_c10'),rejets=gv('out_rejets');
+  if(g30>(stockData.grade30_sacs||0)||g35>(stockData.grade35_sacs||0)||g40>(stockData.grade40_sacs||0)||g50>(stockData.grade50_sacs||0)||c8>(stockData.carton8||0)||c10>(stockData.carton10||0)||rejets>(stockData.rejets_noix||0)){toast('Stock insuffisant !','err');return;}
+  if(g30===0&&g35===0&&g40===0&&g50===0&&c8===0&&c10===0&&rejets===0){toast('Saisir une quantité.','err');return;}
   const motif=gt('out_motif')||'Sortie manuelle';
-  await updateStock(-g30,-g35,-g40,-g50,'sortie_manuelle',motif,-c8,-c10);
-  ['out_g30','out_g35','out_g40','out_g50','out_c8','out_c10','out_motif'].forEach(id=>document.getElementById(id).value='');
+  await updateStock(-g30,-g35,-g40,-g50,'sortie_manuelle',motif,-c8,-c10,-rejets);
+  ['out_g30','out_g35','out_g40','out_g50','out_c8','out_c10','out_rejets','out_motif'].forEach(id=>document.getElementById(id).value='');
   toast('Stock mis à jour.','ok');
   renderStock();
 }
