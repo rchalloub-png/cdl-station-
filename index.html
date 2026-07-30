@@ -2293,7 +2293,7 @@ async function loadStock(){
   updateBadge();
 }
 
-async function updateStock(g30,g35,g40,g50,type,ref,c8,c10,rejets){
+async function updateStock(g30,g35,g40,g50,type,ref,c8,c10,rejets,extra){
   c8=c8||0;c10=c10||0;rejets=rejets||0;
   const n30=(stockData.grade30_sacs||0)+(g30||0);
   const n35=(stockData.grade35_sacs||0)+(g35||0);
@@ -2303,7 +2303,11 @@ async function updateStock(g30,g35,g40,g50,type,ref,c8,c10,rejets){
   const nc10=(stockData.carton10||0)+c10;
   const nrej=(stockData.rejets_noix||0)+rejets;
   await db.from('stock_pf').update({grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10,rejets_noix:nrej,updated_at:new Date().toISOString()}).eq('id',stockData.id);
-  await db.from('mouvements_stock').insert({type,reference:ref,grade30:g30||0,grade35:g35||0,grade40:g40||0,grade50:g50||0,carton8:c8,carton10:c10,rejets,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')});
+  const mvt={type,reference:ref,grade30:g30||0,grade35:g35||0,grade40:g40||0,grade50:g50||0,carton8:c8,carton10:c10,rejets,user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')};
+  if(extra)Object.assign(mvt,extra);
+  const {error:mvtErr}=await db.from('mouvements_stock').insert(mvt);
+  // Ne pas échouer en silence : l'historique doit toujours refléter le stock
+  if(mvtErr)toast('Stock mis à jour, mais historique NON enregistré : '+mvtErr.message,'err');
   stockData={...stockData,grade30_sacs:n30,grade35_sacs:n35,grade40_sacs:n40,grade50_sacs:n50,carton8:nc8,carton10:nc10,rejets_noix:nrej};
   updateBadge();
 }
@@ -2342,13 +2346,9 @@ async function stockEvacuerRejets(){
   const dest=gt('rej_dest'),benef=gt('rej_benef'),pu=gv('rej_pu');
   const montant=Math.round(qte*pu);
   const ref=dest+(benef?' — '+benef:'')+(montant>0?' ('+fmt(montant)+' FCFA)':'');
-  // Débit du stock rejets (rejets négatif)
-  await updateStock(0,0,0,0,'sortie_rejets',ref,0,0,-qte);
-  // Trace détaillée dans mouvements_stock déjà faite par updateStock ; on enrichit avec destination/montant
-  await db.from('mouvements_stock').insert({
-    type:'evacuation_rejets',reference:ref,rejets:-qte,
-    destination:dest,beneficiaire:benef||null,montant_fcfa:montant||0,
-    user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')
+  // Débit du stock rejets + trace détaillée en UNE seule écriture (destination, bénéficiaire, montant)
+  await updateStock(0,0,0,0,'evacuation_rejets',ref,0,0,-qte,{
+    destination:dest,beneficiaire:benef||null,montant_fcfa:montant||0
   });
   ['rej_qte','rej_pu','rej_benef'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('rej_montant').textContent='0 FCFA';
@@ -2357,7 +2357,9 @@ async function stockEvacuerRejets(){
 }
 
 async function rejHisto(){
-  const {data}=await db.from('mouvements_stock').select('*').eq('type','evacuation_rejets').order('created_at',{ascending:false}).limit(100);
+  // Inclut l'ancien type 'sortie_rejets' pour ne perdre aucun historique
+  const {data,error}=await db.from('mouvements_stock').select('*').in('type',['evacuation_rejets','sortie_rejets']).order('created_at',{ascending:false}).limit(100);
+  if(error){toast('Erreur lecture historique : '+error.message,'err');return;}
   const rows=(data||[]).map(m=>{
     const d=new Date(m.created_at).toLocaleDateString('fr-FR');
     return `<tr><td>${d}</td><td>${m.destination||'—'}</td><td>${m.beneficiaire||'—'}</td><td style="text-align:right">${fmt(Math.abs(m.rejets||0))}</td><td style="text-align:right">${fmt(m.montant_fcfa||0)} FCFA</td><td>${m.user_nom||'—'}</td></tr>`;
