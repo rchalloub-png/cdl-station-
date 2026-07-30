@@ -695,6 +695,22 @@ h2{font-size:17px;font-weight:600;color:var(--blue);margin-bottom:16px;display:f
     <button class="btn green" id="btn_plpal_valider" style="display:none" onclick="plPalValider()">&#10003; Valider &amp; débiter stock</button>
   </div>
 </div>
+<div class="card" style="margin-bottom:14px;border-color:var(--green)">
+  <div class="card-title" style="color:var(--green)">&#9889; Option 3 — Saisie rapide des totaux A/B (rattrapage)</div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Saisir directement le nombre total de sacs Cal A (Grade 40) et Cal B (Grade 50). Génère la packing list et débite le stock, sans passer palette par palette.</p>
+  <div class="g2">
+    <div class="fg"><label>Cal A — Grade 40 (sacs)</label><input type="number" id="plq_a" min="0" placeholder="0" oninput="plqCalc()"><div class="kg" id="plq_a_noix"></div></div>
+    <div class="fg"><label>Cal B — Grade 50 (sacs)</label><input type="number" id="plq_b" min="0" placeholder="0" oninput="plqCalc()"><div class="kg" id="plq_b_noix"></div></div>
+  </div>
+  <div class="cond-total" style="margin-top:10px">
+    <div><div style="font-size:13px;font-weight:600">Total livraison</div><div style="font-size:11px;color:var(--muted)" id="plq_recap">0 sac</div></div>
+    <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--green)" id="plq_total">0 sacs</div><div style="font-size:11px;color:var(--muted)" id="plq_total_noix"></div></div>
+  </div>
+  <div class="btn-row no-print" style="margin-top:12px">
+    <button class="btn red" onclick="plqGenerer()">&#9654; Générer la packing list</button>
+    <button class="btn green" id="btn_plq_valider" style="display:none" onclick="plqValider()">&#10003; Valider &amp; débiter stock</button>
+  </div>
+</div>
 <div class="card" style="margin-bottom:14px;border-color:var(--orange)">
   <div class="card-title" style="color:var(--orange)">&#9997; Option 2 — Saisie manuelle (si la personne des palettes est absente)</div>
   <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Remplis directement le plan de potage sac par sac (méthode A/B GG/BIO). Génère la même packing list.</p>
@@ -2450,6 +2466,68 @@ async function plValider(){
   await loadPlHisto();
 }
 function plReset(){plPallets=[];plInit();document.getElementById('rp_pl').classList.remove('show');const bv=document.getElementById('btn_pl_valider');bv.style.display='none';bv.disabled=false;bv.textContent='✓ Valider & débiter stock';['pl_client','pl_sem','pl_batch','pl_ggn','pl_potting','pl_cont','pl_lead','pl_ship','pl_country','pl_etd','pl_eta'].forEach(id=>document.getElementById(id).value='');document.getElementById('pl_npb').value='40';loadPlHisto();}
+
+// ====== OPTION 3 — Saisie rapide totaux A/B (A=Grade 40, B=Grade 50) ======
+function plqCalc(){
+  const a=gv('plq_a'),b=gv('plq_b');
+  const noixA=a*NPS.g40, noixB=b*NPS.g50;
+  document.getElementById('plq_a_noix').textContent=a>0?fmt(noixA)+' noix (Grade 40)':'';
+  document.getElementById('plq_b_noix').textContent=b>0?fmt(noixB)+' noix (Grade 50)':'';
+  document.getElementById('plq_total').textContent=(a+b)+' sacs';
+  document.getElementById('plq_total_noix').textContent=(a+b)>0?fmt(noixA+noixB)+' noix':'';
+  document.getElementById('plq_recap').textContent='A: '+a+' sacs · B: '+b+' sacs';
+}
+
+function plqGenerer(){
+  const a=gv('plq_a'),b=gv('plq_b');
+  if(a+b<=0){toast('Saisis au moins un sac (Cal A ou Cal B).','err');return;}
+  const noixA=a*NPS.g40, noixB=b*NPS.g50;
+  document.getElementById('rp_pl_sub').textContent=(gt('pl_client')||'')+' — SEM '+(gt('pl_sem')||'');
+  document.getElementById('rp_pl_date').textContent='Potting : '+fmtDate(gt('pl_potting'));
+  document.getElementById('rp_pl_sign').textContent=(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'');
+  const refs=[['GGN / Certif.',gt('pl_ggn')||'—'],['Batch N°',gt('pl_batch')||'—'],['Container N°',gt('pl_cont')||'—'],['Lead N°',gt('pl_lead')||'—'],['Ship / Voyage',gt('pl_ship')||'—'],['Country',gt('pl_country')||'—'],['Net weight','21,5 (+/-5%) kg'],['ETD – ETA',fmtDate(gt('pl_etd'))+' – '+fmtDate(gt('pl_eta'))]];
+  document.getElementById('rp_pl_refs').innerHTML=refs.map(r=>'<div style="display:flex;gap:6px"><span style="color:var(--muted);min-width:110px">'+r[0]+'</span><span style="font-weight:500">'+r[1]+'</span></div>').join('');
+  let th='<table class="rp-table"><thead><tr><th>CALIBRE</th><th>GRADE</th><th style="text-align:right">SACS</th><th style="text-align:right">NOIX</th></tr></thead><tbody>';
+  th+='<tr><td style="text-align:center;font-weight:700">Cal A</td><td style="text-align:center">Grade 40</td><td style="text-align:right">'+fmt(a)+'</td><td style="text-align:right">'+fmt(noixA)+'</td></tr>';
+  th+='<tr><td style="text-align:center;font-weight:700">Cal B</td><td style="text-align:center">Grade 50</td><td style="text-align:right">'+fmt(b)+'</td><td style="text-align:right">'+fmt(noixB)+'</td></tr>';
+  th+='<tr class="tr-tot"><td colspan="2"><b>TOTAL</b></td><td style="text-align:right"><b>'+fmt(a+b)+' sacs</b></td><td style="text-align:right"><b>'+fmt(noixA+noixB)+'</b></td></tr>';
+  th+='</tbody></table>';
+  document.getElementById('rp_pl_table').innerHTML=th;
+  document.getElementById('rp_pl').classList.add('show');
+  document.getElementById('btn_plq_valider').style.display='inline-block';
+  document.getElementById('btn_plq_valider').disabled=false;
+  document.getElementById('btn_plq_valider').textContent='✓ Valider & débiter stock';
+  document.getElementById('rp_pl').scrollIntoView({behavior:'smooth'});
+}
+
+async function plqValider(){
+  const a=gv('plq_a'),b=gv('plq_b');
+  if(a+b<=0){toast('Saisis au moins un sac.','err');return;}
+  if(a>(stockData.grade40_sacs||0)||b>(stockData.grade50_sacs||0)){
+    toast('Stock insuffisant ! Dispo — Grade 40 : '+fmt(stockData.grade40_sacs||0)+' sacs, Grade 50 : '+fmt(stockData.grade50_sacs||0)+' sacs.','err');return;
+  }
+  const ref=(gt('pl_client')||'CLIENT')+' SEM'+(gt('pl_sem')||'')+' (rattrapage A/B)';
+  const {error}=await db.from('packing_lists').insert({
+    client:gt('pl_client'),semaine:gt('pl_sem'),batch_num:gt('pl_batch'),ggn:gt('pl_ggn'),
+    date_potting:gt('pl_potting')||null,container_num:gt('pl_cont'),lead_num:gt('pl_lead'),
+    navire:gt('pl_ship'),pays_destination:gt('pl_country'),etd:gt('pl_etd')||null,eta:gt('pl_eta')||null,
+    noix_par_sac:NPS.g40,
+    palettes:JSON.stringify([{calibre:'A/Grade40',sacs:a},{calibre:'B/Grade50',sacs:b}]),
+    total_sacs_gg:a+b,total_sacs_bio:0,statut:'valide',
+    user_id:currentUser.id,user_nom:(currentProfile?.prenom||'')+' '+(currentProfile?.nom||'')
+  });
+  if(error){toast('Erreur: '+error.message,'err');return;}
+  // Débit stock : A→Grade 40, B→Grade 50
+  await updateStock(0,0,-a,-b,'sortie_chargement',ref,0,0,0);
+  toast('Livraison validée ! '+(a+b)+' sacs débités (A:'+a+' G40, B:'+b+' G50).','ok');
+  document.getElementById('btn_plq_valider').disabled=true;
+  document.getElementById('btn_plq_valider').textContent='✓ Validé';
+  ['plq_a','plq_b'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('plq_a_noix').textContent='';document.getElementById('plq_b_noix').textContent='';
+  document.getElementById('plq_total').textContent='0 sacs';document.getElementById('plq_total_noix').textContent='';
+  await loadPlHisto();
+  await loadStock();
+}
 
 // ====== LIVRAISON PAR SCAN DE PALETTES (Étape D) ======
 let plScannedPals=[]; // palettes chargées dans le conteneur
